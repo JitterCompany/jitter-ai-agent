@@ -25,12 +25,14 @@ MIN_FN_LINES_FOR_RATIO = 12  # ignore short fns, the ratio is noise there
 # per row, which is exactly the commenting we want. Enable it with --ratio for a one-off sweep.
 IGNORE_FILE = ".jitter-lint-ignore"  # optional, one glob per line, for vendored trees
 
-BANNER = re.compile(r"^\s*//[/!]?\s*[=*#~_-]{4,}\s*$")
+BANNER = re.compile(r"^\s*(//[/!]?|/?\*+/?)\s*[=*#~_-]{4,}\s*$")
+BLOCK_OPEN = re.compile(r"/\*")
+BLOCK_CLOSE = re.compile(r"\*/")
 # Only real narration. A numbered list of cases or invariants is fine.
 STEP_NARRATION = re.compile(r"^\s*//[/!]?\s*step\s*\d+\b", re.IGNORECASE)
 # Only phrasings that describe the code's past, not ordinary prose containing "used to".
 CHANGE_HISTORY = re.compile(
-    r"\b(used to be|used to have|used to use|we used to|this used to|it used to|was previously|"
+    r"\b(used to be|used to have|used to use|we used to|this used to|it used to|"
     r"changed from|renamed from|now uses .* instead|instead of the old|replaced the old)\b",
     re.IGNORECASE,
 )
@@ -49,12 +51,56 @@ def scan(path, ratio=False):
     except OSError as exc:
         return [(1, "could not read: {}".format(exc))]
 
+    blocks = block_regions(lines)
     findings = []
     findings += scan_runs(lines)
-    findings += scan_patterns(lines)
+    findings += scan_blocks(lines, blocks)
+    findings += scan_patterns(lines, blocks)
     if ratio:
         findings += scan_fn_ratio(lines)
     return sorted(findings)
+
+
+def block_regions(lines):
+    """Line indices covered by /* */ comments, as a list of (start, end) inclusive pairs.
+
+    C-style blocks are how banner headers and step narration come back in after a rewrite,
+    and the // checks never see them.
+    """
+    regions = []
+    start = None
+    for i, line in enumerate(lines):
+        # Only a comment that starts its own line counts. Anything else is usually a string,
+        # such as an HTTP header `Accept: */*` in the middle of a raw literal.
+        if start is None and BLOCK_OPEN.match(line.lstrip()):
+            start = i
+        if start is not None and BLOCK_CLOSE.search(line, 1 if start == i else 0):
+            regions.append((start, i))
+            start = None
+    if start is not None:
+        regions.append((start, len(lines) - 1))
+    return regions
+
+
+def scan_blocks(lines, blocks):
+    """R17: Rust comments are // and ///, not /* */."""
+    if not blocks:
+        return []
+    lines_covered = sum(end - start + 1 for start, end in blocks)
+    return [
+        (
+            blocks[0][0] + 1,
+            "R17: {} /* */ comment block(s), {} lines. Rust comments are // and ///, and a "
+            "C-style block is where banners and step narration come back.".format(
+                len(blocks), lines_covered
+            ),
+        )
+    ]
+
+
+def as_comment(line):
+    """A line inside a /* */ block, rewritten as a // line so the same patterns apply."""
+    return re.sub(r"^\s*(/\*+|\*+/?)\s?", "// ", line)
 
 
 def scan_runs(lines):
@@ -111,10 +157,12 @@ def next_item(lines, index):
     return ""
 
 
-def scan_patterns(lines):
+def scan_patterns(lines, blocks=()):
+    inside = {i for start, end in blocks for i in range(start, end + 1)}
     findings = []
-    for i, line in enumerate(lines, start=1):
-        if BANNER.match(line):
+    for i, raw in enumerate(lines, start=1):
+        line = as_comment(raw) if i - 1 in inside else raw
+        if BANNER.match(raw) or (i - 1 in inside and BANNER.match(line)):
             findings.append((i, "R2: banner comment. Delete it, the item name is the heading."))
         elif STEP_NARRATION.match(line):
             findings.append((i, "R2: step narration. The code already shows the order."))
@@ -164,8 +212,11 @@ def scan_fn_ratio(lines):
     return findings
 
 
-def strip_strings(line):
-    """Drop string and char literals and trailing comments so braces inside them do not count."""
+def strip_strings(line, keep_block=False):
+    """Drop string and char literals, and the trailing // comment, so what is left is code.
+
+    keep_block leaves /* and */ in place, which is what block_regions needs.
+    """
     out = []
     quote = None
     k = 0

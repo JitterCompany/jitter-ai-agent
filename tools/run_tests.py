@@ -61,7 +61,8 @@ pub fn read(v: &Vec<u32>) -> i32 {
 }
 '''
 
-LEAKY = 'path = "/home/alice/dev/x"\nmail = "alice.private@gmail.com"\n'
+# Built at runtime so this file does not itself trip path_leak_check.
+LEAKY = 'path = "/{}/alice/dev/x"\nmail = "alice.private@{}.com"\n'.format("home", "gmail")
 CLEAN_PATHS = 'path = "${KIPRJMOD}/../x"\nmail = "dev@jitter.company"\nhome = "/home/user/generic"\n'
 
 PROJECT = {

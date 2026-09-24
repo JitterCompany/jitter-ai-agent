@@ -7,6 +7,8 @@ Pre-commit:   see templates/pre-commit in jitter-ai-agent
 
 Catches /home/<user>, /Users/<user>, C:\\Users\\<user>, personal email addresses, an ssh
 private key header and obvious tokens. Exit 0 clean, 1 findings.
+
+A line that must carry an example path can opt out with a `path-leak-check: allow` comment.
 Runs on Linux and macOS with a stock python3, no dependencies.
 """
 
@@ -30,6 +32,10 @@ PATTERNS = [
     ("token", re.compile(r"\b(?:ghp|github_pat|sk-[A-Za-z0-9]{8}|xox[baprs])[A-Za-z0-9_-]{10,}")),
 ]
 
+# An explicit escape hatch for a line that must contain an example path, such as a test
+# fixture or documentation of the pattern itself.
+ALLOW_MARKER = "path-leak-check: allow"
+
 # Addresses we publish on purpose.
 EMAIL_ALLOW = re.compile(r"@(jitter\.company|users\.noreply\.github\.com|noreply\.anthropic\.com|example\.(com|org))$")
 
@@ -45,6 +51,8 @@ def interesting(name, match):
 def scan_text(text, label):
     findings = []
     for lineno, line in enumerate(text.splitlines(), start=1):
+        if ALLOW_MARKER in line:
+            continue
         for name, pattern in PATTERNS:
             for match in pattern.finditer(line):
                 if interesting(name, match):

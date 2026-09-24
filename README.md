@@ -61,7 +61,7 @@ In a session, `/jitter-check` runs the applicable ones and sorts the hits from t
 
 Everything runs on Linux and macOS with a stock python3, exits 0 when clean, and prints `file:line: rule: problem`.
 
-A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line.
+A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line. A single line that must carry an example path opts out with a `path-leak-check: allow` comment.
 
 ## Change a rule
 

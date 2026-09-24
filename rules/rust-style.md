@@ -12,6 +12,7 @@ The recurring failure is comment bloat: blocks that restate the code, narrate th
 - **R3** At most 4 consecutive `//` lines. When editing existing code, trim the comments around it rather than adding to them.
 - **R4** A longer explanation belongs in a decision record under `docs/decisions/`, with the code pointing at it.
 - **R5** Keep the comments and the `debug!` / `info!` / `warn!` / `error!` / `trace!` statements that were already there, unless the code they describe is gone.
+- **R17** Comments are `//` and `///`. No `/* */` blocks: they are where banner headers and step narration come back, and rustfmt leaves them alone. `comment_lint.py` flags them.
 - **R12** Doc comments on public items: one summary line, then only the non-obvious parts (units, panics, timing, ownership).
 
 Bad:
@@ -103,4 +104,4 @@ fn find_slot(&self, id: u8) -> Option<usize> {
 
 ## Not in core.md
 
-R12 to R16 are not in the session digest. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
+R12 to R17 are not in the session digest. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
