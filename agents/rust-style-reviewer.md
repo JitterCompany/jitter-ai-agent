@@ -15,13 +15,13 @@ Read the diff the user names. Default to both staged and unstaged work:
 git -C <repo> diff HEAD
 ```
 
-Read `$JITTER_ROOT/rules/rust-style.md` first, and run
+Read `rules/rust-style.md` under the plugin path printed at session start as `JITTER_ROOT=`, substituting that path yourself because the Read tool does not expand shell variables first, and run
 `python3 "$JITTER_ROOT/tools/comment_lint.py"` over the changed `.rs` files. The
 script catches the mechanical cases, so spend your attention on what it cannot see.
 
 ## What to look for
 
-Read `$JITTER_ROOT/rules/rust-style.md` and review against it, in that order of severity:
+Read `rules/rust-style.md` under the plugin path printed at session start as `JITTER_ROOT=`, substituting that path yourself because the Read tool does not expand shell variables and review against it, in that order of severity:
 comments (R2 to R5, R12, R17), C-isms (R1), new macros (R6), layout (R7, R13), interfaces
 (R8, R9, R14), firmware (R11, R15, R16). Add C3 leaks: local paths, personal addresses or
 tokens in anything committed.

@@ -11,7 +11,7 @@ Already in `core.md`, they apply here as written: W6 submodules (`KicadComponent
 Opening a project is enough for KiCad to rewrite `.kicad_pro`, and it drops things while doing it. ERC and DRC exclusions are the usual casualty: a list of 13 reviewed exclusions comes back empty, and the next CI run is suddenly full of violations that were signed off months ago.
 
 - **H5** Check `git status` and `git diff` on `*.kicad_pro` before committing, even when the intent was only to look at a schematic.
-- **H6** Run `python3 tools/kicad_project_check.py` (jitter-ai-agent). It compares the working copy against git and reports cleared exclusions, dropped severity overrides, emptied text variables and changed net classes.
+- **H6** Run `python3 "$JITTER_ROOT/tools/kicad_project_check.py"`. It compares the working copy against git and reports cleared exclusions, dropped severity overrides, emptied text variables and changed net classes.
 - **H7** Restore what was cleared with `git checkout -- <file>`, or re-apply the exclusions in KiCad, before committing anything else in that repo.
 - **H8** Never bulk-accept a `.kicad_pro` diff. Read it, it is JSON and it is short.
 

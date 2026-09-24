@@ -19,10 +19,12 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {".md", ".markdown", ".txt", ".typ", ".rst"}
 
+ALLOW_MARKER = "prose-check: allow"
+INLINE_CODE = re.compile(r"`[^`]*`")
 EM_DASH = re.compile(r"—")
 # An en dash between numbers is a range (0–15, 10–100 MHz), which is fine.
 EN_DASH_PROSE = re.compile(r"(?<![\d\s])–|–(?!\d)")
-SEMICOLON_CHAIN = re.compile(r"\w{25,};\s+\w")  # a long clause, then another one
+SEMICOLON_CHAIN = re.compile(r"[^;\n`]{40,};\s+[a-z]")  # a long clause, then another one
 
 
 def scan(path):
@@ -36,16 +38,23 @@ def scan(path):
         if line.lstrip().startswith("```"):
             in_code = not in_code
             continue
-        if in_code:
+        if in_code or line.startswith("    ") or line.startswith("\t"):
+            continue  # fenced or indented code is code
+        if ALLOW_MARKER in line:
             continue
+        line = INLINE_CODE.sub(" ", line)
         if EM_DASH.search(line) or EN_DASH_PROSE.search(line):
             findings.append(
-                "{}:{}: P1: em or en dash in prose. Use a comma, a full stop or brackets. "
-                "A numeric range such as 10-100 MHz is fine.".format(path, lineno)
+                (lineno, "P1: em or en dash in prose. Use a comma, a full stop or brackets. "
+                         "A numeric range such as 10-100 MHz is fine.")
             )
         if SEMICOLON_CHAIN.search(line):
-            findings.append("{}:{}: P2: clauses chained with a semicolon. Two sentences read better.".format(path, lineno))
+            findings.append((lineno, "P2: clauses chained with a semicolon. Two sentences read better."))
     return findings
+
+
+def report(path, findings):
+    return ["{}:{}: {}".format(path, lineno, message) for lineno, message in findings]
 
 
 def tracked():
@@ -85,21 +94,24 @@ def main(argv):
         if Path(path).suffix.lower() not in TEXT_SUFFIXES:
             return 0
         touched = written_lines(path, tool_input)
-        findings = [f for f in scan(path) if int(f.split(":")[1]) in touched]
+        findings = [f for f in scan(path) if f[0] in touched]
         if not findings:
             return 0
         sys.stderr.write(
-            "Writing style, on the lines this edit wrote:\n" + "\n".join(findings) + "\n"
+            "Writing style, on the lines this edit wrote:\n"
+            + "\n".join(report(path, findings))
+            + "\nRewrite them. If a dash belongs there, such as a quote from someone else, "
+            "put `prose-check: allow` on the line.\n"
         )
         return 2
 
     paths = tracked() if "--tracked" in argv else [a for a in argv if not a.startswith("-")]
-    findings = []
+    lines = []
     for path in paths:
-        findings += scan(path)
-    if not findings:
+        lines += report(path, scan(path))
+    if not lines:
         return 0
-    sys.stderr.write("\n".join(findings) + "\n")
+    sys.stderr.write("\n".join(lines) + "\n")
     return 1
 
 

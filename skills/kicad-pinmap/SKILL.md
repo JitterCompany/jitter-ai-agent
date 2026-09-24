@@ -33,7 +33,7 @@ once, the map looked plausible and passed spot checks until pins on opposite
 ends of the symbol were compared.) The netlist is authoritative and traverses
 the sheet hierarchy. Only pull *static* per-pin data (name, alternate functions)
 from the symbol, that has no geometry dependence. File-parser libraries
-(kiutils, kicad-skip) don't solve connectivity either; only the netlister does.
+(kiutils, kicad-skip) don't solve connectivity either. Only the netlister does.
 
 ## Procedure
 1. **Run it.** Both netlists are auto-exported, so normally just:
@@ -64,7 +64,7 @@ TIM4 = "ADC_SYNC"           # only that net may use it (its own I/O pin)
 SWDIO = "debug"             # exact net name (case-insensitive)
 "UART_SWD_*" = "debug"      # fnmatch glob, glob keys MUST be quoted in TOML
 ```
-Default grouping is the net name's first `_`-token; `[groups]` only overrides
+Default grouping is the net name's first `_`-token. `[groups]` only overrides
 signals whose subsystem the name alone doesn't convey.
 
 ## Sanity checks it runs (and you should eyeball)
@@ -110,7 +110,7 @@ Provided by the reusable workflow in pcb_release
 makes the pin map REQUIRED: a missing `pinmap.config.toml` fails the job rather
 than passing green having checked nothing.
 - **pinmap-check** (`pcb.sh pinmap-check`), validation: EXTI / double-booking /
-  reserved / analog errors. Emits GitHub `::error::` annotations; `ignore` in the
+  reserved / analog errors. Emits GitHub `::error::` annotations. `ignore` in the
   config downgrades justified ones to notices.
 - **pinmap-drift** (`pcb.sh pinmap-drift`), regenerates and `git diff`s the
   committed TOML; any change fails. This is a *breaking-change signal*, kept

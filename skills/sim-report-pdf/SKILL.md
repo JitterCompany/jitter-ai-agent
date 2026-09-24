@@ -42,7 +42,7 @@ count. A 1-page result usually means images failed to resolve.
 
 ## Writing conventions
 
-These are what make the report readable at a glance; keep them.
+These are what make the report readable at a glance. Keep them.
 
 - **YAML frontmatter** with `title:` and `date:`, pandoc renders it as the
   heading block, and `title` becomes the PDF metadata title.

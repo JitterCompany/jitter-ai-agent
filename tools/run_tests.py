@@ -168,6 +168,33 @@ def comment_lint_cases(tmp, ok):
     code, out = run("comment_lint.py", [str(datasheet)])
     ok &= check("a datasheet step and a markdown rule are not flagged", code == 0, out)
 
+    escaped = tmp / "escaped.rs"
+    backslash_quote = "'" + chr(92) + chr(34) + "'"  # the Rust char literal '\"'
+    escaped.write_text(
+        "fn a() {\n"
+        "    let c = " + backslash_quote + ";\n"
+        "    // =========================\n"
+        '    let s = "text with /* x */";\n'
+        "}\n"
+    )
+    code, out = run("comment_lint.py", [str(escaped)])
+    ok &= check(
+        "an escaped char literal does not desync the lexer",
+        code == 1 and "R2" in out and "R17" not in out, out,
+    )
+
+    after_code = tmp / "after_code.rs"
+    after_code.write_text(
+        "foo(); // Step 2: enable the clock\n"
+        "bar(); // this used to be 3ms\n"
+        "baz(); // Step 4 of the datasheet sequence\n"
+    )
+    code, out = run("comment_lint.py", [str(after_code)])
+    ok &= check(
+        "a comment after code is checked, and a datasheet step is not narration",
+        code == 1 and out.count("R2") == 2, out,
+    )
+
     trailing = tmp / "trailing.rs"
     trailing.write_text("let x = 1; /* =====================\n   banner\n   ===================== */\n")
     code, out = run("comment_lint.py", [str(trailing)])
@@ -299,6 +326,15 @@ def guard_cases(ok):
 
     for command, want, name in [
         ("git -C /repo push origin main", 2, "git -C is still a push"),
+        ("sudo git push", 2, "sudo does not hide a push"),
+        ("time git push origin main", 2, "time does not hide a push"),
+        ("echo main | xargs git push origin", 2, "xargs does not hide a push"),
+        ("(git push)", 2, "a subshell does not hide a push"),
+        ("if true; then git push; fi", 2, "a then branch does not hide a push"),
+        ("for x in a; do git push; done", 2, "a loop body does not hide a push"),
+        ("echo $(git push)", 2, "command substitution does not hide a push"),
+        ("/usr/bin/git push", 2, "an absolute path is still git"),
+        ("echo 'careful; git push origin main'", 0, "a separator inside quotes is not a separator"),
         ("cargo publish --dry-run && git push origin main", 2, "a dry run elsewhere does not excuse a push"),
         ('echo "JITTER_PUSH_OK=1"; git push origin main', 2, "a quoted mention of the escape is not approval"),
         ("bash -c 'git push origin main'", 2, "a push inside bash -c is seen"),

@@ -5,7 +5,7 @@ description: The Jitter Rust style guide, with bad-to-good examples for comments
 
 # Jitter Rust style
 
-Read `$JITTER_ROOT/rules/rust-style.md` now, then apply it to the code at hand.
+Read `rules/rust-style.md` under the plugin path printed at session start as `JITTER_ROOT=`, substituting that path yourself because the Read tool does not expand shell variables now, then apply it to the code at hand.
 
 The short version is already in context from `rules/core.md`. Load the full file when you need the reasoning, the examples, or a rule you are unsure about.
 

@@ -33,11 +33,11 @@ EXEMPT_RUN = re.compile(r"^\s*//[/!]?\s*(SAFETY|INVARIANT)\b", re.IGNORECASE)
 
 # Doc comments are markdown, where --- is a horizontal rule, so banners are only // and /* */.
 BANNER = re.compile(r"^\s*(//(?![/!])|/?\*+/?)\s*[=*#~_-]{4,}\s*$|^\s*/{5,}\s*$")
-STEP_NARRATION = re.compile(r"^\s*//\s*step\s*\d+\s*[:.)-]", re.IGNORECASE)
+STEP_NARRATION = re.compile(r"^\s*//[/!]?\s*step\s*\d+\b", re.IGNORECASE)
 # "Step 4 of the datasheet power-up sequence" is a cross-reference, not narration.
 STEP_REFERENCE = re.compile(
-    r"\b(datasheet|data sheet|reference manual|errata|app note|application note|spec|"
-    r"sequence in|section)\b", re.IGNORECASE
+    r"\b(datasheet|data sheet|reference manual|errata|app note|application note)\b",
+    re.IGNORECASE,
 )
 CHANGE_HISTORY = re.compile(
     r"\b(used to be|used to have|used to use|we used to|this used to|it used to|"
@@ -47,7 +47,7 @@ CHANGE_HISTORY = re.compile(
 LINE_COMMENT = re.compile(r"^\s*//(?![/!])")
 DOC_COMMENT = re.compile(r"^\s*///(?!/)")
 RAW_STRING = re.compile(r'r(#*)"')
-CHAR_LITERAL = re.compile(r"'(\\\\.|[^\\\\'])'")
+CHAR_LITERAL = re.compile(r"'(\\.|[^\\'])'")
 
 BLOCK = "block"
 ADVISE = "advise"
@@ -240,6 +240,9 @@ def scan_runs(lines):
     return findings
 
 
+TRAILING_COMMENT = re.compile(r"\S\s+(//[^/!].*)$")
+
+
 def scan_patterns(lines, blocks, string_lines=frozenset()):
     inside = {i for start, end in blocks for i in range(start, end + 1)}
     findings = []
@@ -259,6 +262,19 @@ def scan_patterns(lines, blocks, string_lines=frozenset()):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: change history in a comment. Git records that.")
             )
+        elif i - 1 not in inside:
+            # A comment after code on the same line, which the anchored patterns never see.
+            trailing = TRAILING_COMMENT.search(raw)
+            if trailing:
+                text = trailing.group(1)
+                if STEP_NARRATION.match(text) and not STEP_REFERENCE.search(text):
+                    findings.append(
+                        (i, i, "R2", BLOCK, "R2: step narration. The code already shows the order.")
+                    )
+                elif CHANGE_HISTORY.search(text):
+                    findings.append(
+                        (i, i, "R2", BLOCK, "R2: change history in a comment. Git records that.")
+                    )
     return findings
 
 
@@ -319,9 +335,10 @@ def written_spans(path, tool_input):
             offset = text.find(chunk, offset + 1)
         if not found:
             # Whitespace differed, fall back to the written lines themselves.
+            all_lines = [line.strip() for line in text.splitlines()]
             wanted = {line.strip() for line in chunk.splitlines() if line.strip()}
-            for number, line in enumerate(text.splitlines(), start=1):
-                if line.strip() in wanted:
+            for number, line in enumerate(all_lines, start=1):
+                if line in wanted and all_lines.count(line) == 1:
                     spans.append((number, number))
     return spans
 

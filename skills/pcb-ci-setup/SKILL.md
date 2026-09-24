@@ -9,7 +9,7 @@ Five gates over every KiCad board in a repo: `erc`, `drc`, `3d`, `drift`, `pinma
 All logic lives in **https://github.com/JitterCompany/pcb_release** (public), called as
 two reusable GitHub workflows. A consumer repo states only its board list.
 
-Built first for **5101-btbenergy-zonneboiler**; also installed in 2607-telecom-displays,
+Built first for **5101-btbenergy-zonneboiler**. Also installed in 2607-telecom-displays,
 2507-vpinstruments-transmitter-electronics, 4108-frogwatch-hardware. Copy the newest of
 those as the reference, check its `.github/workflows/ci-hardware*.yml` and
 `hardware/tools/pcb.sh`.
@@ -47,7 +47,7 @@ hardware, drop the `hardware/` prefix everywhere (vpinstruments does).
    and `[groups]` (section names in the generated map). **`[reserved]` is only for
    PERIPHERALS the firmware owns internally**, `TIM5 = ""` for a monotonic, `TIM4 =
    "ADC_SYNC"` to allow one net, so CI flags any pin whose active alternate lands on
-   one. It is never a way to reserve a *pin*; that intent belongs in a net name plus a
+   one. It is never a way to reserve a *pin*. That intent belongs in a net name plus a
    firmware constant. Misreading it has confused several people.
    Generate with `hardware/tools/pcb.sh pinmap <board>` and **commit the generated
    `pinmap.toml`**, the gate diffs against it, so firmware sees any pin change in review.

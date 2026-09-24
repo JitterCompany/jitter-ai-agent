@@ -25,12 +25,43 @@ PUBLISHING = [
     (("git",), "send-email", "git send-email"),
 ]
 NESTING = {"bash", "sh", "zsh", "dash", "eval", "xargs", "env", "time", "nohup", "sudo", "doas"}
+# Shell grouping and control words sit in front of the real command.
+GROUPING = {"(", ")", "{", "}", "then", "do", "else", "elif", "!", "&&", "||", ";"}
 GIT_OPTION_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 
 
+SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
+
+
 def segments(command):
-    """Split a command line into the pieces a shell would run separately."""
-    parts = re.split(r"\n|;|&&|\|\||\||&", strip_heredocs(command))
+    """Split into the pieces a shell would run separately, ignoring separators inside quotes."""
+    text = strip_heredocs(command)
+    parts = []
+    current = []
+    quote = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            current.append(ch)
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+            current.append(ch)
+            i += 1
+            continue
+        hit = next((s for s in SEPARATORS if text.startswith(s, i)), None)
+        if hit:
+            parts.append("".join(current))
+            current = []
+            i += len(hit)
+            continue
+        current.append(ch)
+        i += 1
+    parts.append("".join(current))
     return [p.strip() for p in parts if p.strip()]
 
 
@@ -77,9 +108,18 @@ def publishing_in(segment, depth=0):
     if not tokens:
         return None
 
-    if tokens[0] in NESTING and depth < 2:
-        for token in tokens[1:]:
-            nested = publishing_in(token, depth + 1)
+    while tokens and tokens[0] in GROUPING:
+        tokens.pop(0)
+    if not tokens:
+        return None
+
+    program = tokens[0].rsplit("/", 1)[-1]  # /usr/bin/git is git
+
+    if program in NESTING and depth < 3:
+        rest = tokens[1:]
+        # `bash -c "git push"` hides it in one token, `sudo git push` in the remainder.
+        for candidate in [*rest, " ".join(rest)]:
+            nested = publishing_in(candidate, depth + 1)
             if nested:
                 return nested
         return None
@@ -87,8 +127,8 @@ def publishing_in(segment, depth=0):
     if "--dry-run" in tokens:
         return None
 
-    for program, subcommand, name in PUBLISHING:
-        if tokens[0] not in program:
+    for programs, subcommand, name in PUBLISHING:
+        if program not in programs:
             continue
         rest = tokens[1:]
         while rest and (rest[0] in GIT_OPTION_WITH_VALUE or rest[0].startswith("--git-dir=")):

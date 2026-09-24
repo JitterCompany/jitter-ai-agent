@@ -71,6 +71,7 @@ Two escape hatches, both deliberate and both visible in the diff:
 
 - `// jitter-lint: allow R3 <reason>` anywhere inside the comment it refers to.
 - `path-leak-check: allow` on a line that must carry an example path.
+- `prose-check: allow` on a line whose dash belongs there, such as a quotation.
 
 A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line.
 
