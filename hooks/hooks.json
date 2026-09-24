@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "ROOT_FILE=\"${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root\"; mkdir -p \"$(dirname \"$ROOT_FILE\")\" 2>/dev/null; [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && printf %s \"${CLAUDE_PLUGIN_ROOT}\" > \"$ROOT_FILE\" 2>/dev/null; cat \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\"; printf '\\nJITTER_ROOT=%s\\nIn a shell, set it with: JITTER_ROOT=$(cat \"%s\")\\n' \"${CLAUDE_PLUGIN_ROOT}\" \"$ROOT_FILE\""
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && [ -f \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\" ]; then ROOT_FILE=\"${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root\"; mkdir -p \"$(dirname \"$ROOT_FILE\")\" 2>/dev/null; printf %s \"${CLAUDE_PLUGIN_ROOT}\" > \"$ROOT_FILE\" 2>/dev/null; cat \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\"; printf '\\nJITTER_ROOT=%s\\nIn a shell, set it with: JITTER_ROOT=$(cat \"%s\")\\n' \"${CLAUDE_PLUGIN_ROOT}\" \"$ROOT_FILE\"; fi"
           },
           {
             "type": "command",

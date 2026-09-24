@@ -21,23 +21,31 @@ def tracked():
     return [line for line in done.stdout.splitlines() if line]
 
 
+def ignore_globs(start):
+    """Globs from the nearest .jitter-lint-ignore, walking up from the file, as comment_lint does."""
+    here = Path(start).resolve().parent
+    for folder in [here, *here.parents]:
+        candidate = folder / IGNORE_FILE
+        if candidate.is_file():
+            globs = [
+                line.strip()
+                for line in candidate.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            return folder, globs
+        if (folder / ".git").exists():
+            break
+    return None, []
+
+
 def ignored(path):
-    """Globs from .jitter-lint-ignore at the repo root, the same file comment_lint reads."""
-    root = Path(subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False
-    ).stdout.strip() or ".")
-    candidate = root / IGNORE_FILE
-    if not candidate.is_file():
+    root, globs = ignore_globs(path)
+    if not globs:
         return False
-    globs = [
-        line.strip()
-        for line in candidate.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
     try:
-        rel = Path(path).resolve().relative_to(root.resolve()).as_posix()
+        rel = Path(path).resolve().relative_to(root).as_posix()
     except ValueError:
-        rel = path
+        return False
     return any(fnmatch.fnmatch(rel, g) for g in globs)
 
 

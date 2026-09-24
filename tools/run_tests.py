@@ -121,10 +121,16 @@ def comment_lint_cases(tmp, ok):
     elsewhere = hook("comment_lint.py", edit(bloat, "pub const LIMIT: usize = 8;\n"))
     ok &= check("hook silent about comments this edit did not write (R5)", elsewhere[0] == 0, elsewhere[1])
 
+    # A blocking finding in one place, and the same comment text written somewhere else.
     cross = tmp / "cross.rs"
-    cross.write_text("fn old() {\n" + "    // note\n" * 6 + "}\n\nfn new() {\n    // note\n    let x = 1;\n}\n")
-    result = hook("comment_lint.py", edit(cross, "    // note\n    let x = 1;\n"))
-    ok &= check("identical comment text elsewhere is not blamed", result[0] == 0, result[1])
+    cross.write_text(
+        "fn old() {\n    // Step 1: the old narration\n    let a = 1;\n}\n\n"
+        "fn new() {\n    let a = 1;\n}\n"
+    )
+    result = hook("comment_lint.py", edit(cross, "    let a = 1;\n"))
+    ok &= check("identical code elsewhere does not drag in a blocking finding", result[0] == 0, result[1])
+    result = hook("comment_lint.py", edit(cross, "    // Step 1: the old narration\n"))
+    ok &= check("the edit that wrote the narration is blocked", result[0] == 2, result[1])
 
     long_run = tmp / "long.rs"
     long_run.write_text("".join("// reason {}\n".format(i) for i in range(8)) + "fn x() {}\n")
@@ -198,7 +204,22 @@ def comment_lint_cases(tmp, ok):
     trailing = tmp / "trailing.rs"
     trailing.write_text("let x = 1; /* =====================\n   banner\n   ===================== */\n")
     code, out = run("comment_lint.py", [str(trailing)])
-    ok &= check("a block comment after code is seen", code == 1 and "R17" in out, out)
+    ok &= check(
+        "a block comment after code is seen, banner included",
+        code == 1 and "R17" in out and "banner" in out, out,
+    )
+
+    with_strings = tmp / "with_strings.rs"
+    with_strings.write_text(
+        'info!("starting"); // Step 3: kick the modem\n'
+        'let s = "x";       // this used to be 5ms\n'
+        'let v = "// Step 9: inside a string";\n'
+    )
+    code, out = run("comment_lint.py", [str(with_strings)])
+    ok &= check(
+        "a trailing comment is checked even when the line holds a string",
+        code == 1 and out.count("R2") == 2, out,
+    )
     return ok
 
 

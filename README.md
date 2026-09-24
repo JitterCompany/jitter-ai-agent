@@ -77,7 +77,9 @@ A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root,
 
 ## Two levels, on purpose
 
-The edit hook blocks only on rules that measured near 100% precision on real code: banners, step narration, change history, a new `/* */` block, and an em dash in prose. A long comment run (R3) only shows up in a sweep, because on sensor-link all 30 of them turned out to be derivations, errata notes or `// SAFETY:` justifications worth keeping.
+The edit hook blocks only on rules that measured near 100% precision on real code: banners, step narration, change history, a new `/* */` block, and an em dash in prose (P1).
+
+Two checks are sweep-only, because measurement said so. A long comment run (R3) was worth keeping in all 30 cases on sensor-link. Sentences chained with a semicolon (P2) were right about one time in four across 2842 markdown files, and a check that is wrong three times in four gets the whole hook deleted, taking the push guard with it.
 
 The push guard is a reminder, not a security control. An agent determined to get around it can, for example by writing a script. It exists to catch the agent that forgets.
 

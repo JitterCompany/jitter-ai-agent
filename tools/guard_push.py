@@ -24,10 +24,14 @@ PUBLISHING = [
     (("gh",), "release create", "gh release create"),
     (("git",), "send-email", "git send-email"),
 ]
-NESTING = {"bash", "sh", "zsh", "dash", "eval", "xargs", "env", "time", "nohup", "sudo", "doas"}
+NESTING = {"bash", "sh", "zsh", "dash", "eval", "xargs", "env", "time", "nohup", "sudo", "doas",
+           "timeout", "ssh-agent", "setsid", "stdbuf", "script"}
 # Shell grouping and control words sit in front of the real command.
 GROUPING = {"(", ")", "{", "}", "then", "do", "else", "elif", "!", "&&", "||", ";"}
 GIT_OPTION_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
+            "--no-replace-objects", "--no-optional-locks"}
+HELP = {"--help", "-h"}
 
 
 SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
@@ -36,12 +40,18 @@ SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
 def segments(command):
     """Split into the pieces a shell would run separately, ignoring separators inside quotes."""
     text = strip_heredocs(command)
+    if not quotes_balance(text):
+        return [p.strip() for p in re.split(r"\n|;|&&|\|\||\||&|\$\(|`", text) if p.strip()]
     parts = []
     current = []
     quote = None
     i = 0
     while i < len(text):
         ch = text[i]
+        if ch == "\\" and quote != "'":
+            current.append(text[i:i + 2])
+            i += 2
+            continue
         if quote:
             current.append(ch)
             if ch == quote:
@@ -65,6 +75,24 @@ def segments(command):
     return [p.strip() for p in parts if p.strip()]
 
 
+def quotes_balance(text):
+    """Do the quotes pair up? `'fix Bob'\\''s typo'` and `"a \\" b"` say no on a naive scan."""
+    quote = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and quote != "'":
+            i += 2
+            continue
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        i += 1
+    return quote is None
+
+
 def strip_heredocs(command):
     """Drop heredoc bodies. Their text is data, not commands."""
     lines = command.splitlines()
@@ -75,7 +103,9 @@ def strip_heredocs(command):
             if line.strip() == terminator:
                 terminator = None
             continue
-        found = re.search(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?", line)
+        found = re.search(
+            r"(?<!<)<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?\s*(?:[|&>;]|$)", line
+        )
         out.append(line)
         if found:
             terminator = found.group(1)
@@ -117,21 +147,26 @@ def publishing_in(segment, depth=0):
 
     if program in NESTING and depth < 3:
         rest = tokens[1:]
-        # `bash -c "git push"` hides it in one token, `sudo git push` in the remainder.
-        for candidate in [*rest, " ".join(rest)]:
-            nested = publishing_in(candidate, depth + 1)
-            if nested:
-                return nested
+        # `bash -c "git push"` hides it in one token, `sudo git push` in the remainder, and
+        # `timeout 60 git push` behind the wrapper's own arguments.
+        candidates = list(rest) + [" ".join(rest[k:]) for k in range(len(rest))]
+        for candidate in candidates:
+            for piece in segments(candidate):
+                nested = publishing_in(piece, depth + 1)
+                if nested:
+                    return nested
         return None
 
-    if "--dry-run" in tokens:
+    if "--dry-run" in tokens or HELP & set(tokens):
         return None
 
     for programs, subcommand, name in PUBLISHING:
         if program not in programs:
             continue
         rest = tokens[1:]
-        while rest and (rest[0] in GIT_OPTION_WITH_VALUE or rest[0].startswith("--git-dir=")):
+        while rest and (
+            rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
+        ):
             rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
         if " ".join(rest[: len(subcommand.split())]) == subcommand:
             return name

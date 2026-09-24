@@ -60,8 +60,12 @@ def scan(path):
     except OSError as exc:
         return [(1, 1, "IO", BLOCK, "could not read: {}".format(exc))]
 
-    blocks, string_lines = lex(lines)
-    findings = scan_runs(lines) + scan_blocks(blocks) + scan_patterns(lines, blocks, string_lines)
+    blocks, string_lines, comment_at = lex(lines)
+    findings = (
+        scan_runs(lines)
+        + scan_blocks(blocks)
+        + scan_patterns(lines, blocks, string_lines, comment_at)
+    )
     allowed = allow_markers(lines)
     return sorted(f for f in findings if not suppressed(f, allowed))
 
@@ -86,7 +90,8 @@ def suppressed(finding, allowed):
 
 
 def lex(lines):
-    """Walk the file once and report (block comment spans, lines covered by a string).
+    """Walk the file once and report the block comment spans, the lines a string covers, and
+    where a // comment starts on each line.
 
     Per-line scanning is not enough: strings span lines (raw strings, and regular ones
     continued with a backslash), a `*/` inside one used to look like a comment, and a char
@@ -95,6 +100,7 @@ def lex(lines):
     text = "\n".join(lines)
     regions = []
     string_lines = set()
+    comment_at = {}
     line = 0
     depth = 0
     start_line = 0
@@ -127,6 +133,7 @@ def lex(lines):
 
         if text.startswith("//", i):
             newline = text.find("\n", i)
+            comment_at.setdefault(line, i - (text.rfind("\n", 0, i) + 1))
             if newline == -1:
                 break
             i = newline
@@ -178,7 +185,7 @@ def lex(lines):
 
     if depth:
         regions.append((start_line, len(lines) - 1))
-    return regions, string_lines
+    return regions, string_lines, comment_at
 
 
 def scan_blocks(blocks):
@@ -240,16 +247,15 @@ def scan_runs(lines):
     return findings
 
 
-TRAILING_COMMENT = re.compile(r"\S\s+(//[^/!].*)$")
-
-
-def scan_patterns(lines, blocks, string_lines=frozenset()):
+def scan_patterns(lines, blocks, string_lines=frozenset(), comment_at=None):
+    comment_at = comment_at or {}
     inside = {i for start, end in blocks for i in range(start, end + 1)}
     findings = []
     for i, raw in enumerate(lines, start=1):
-        if i - 1 in string_lines and i - 1 not in inside:
+        index = i - 1
+        if index in string_lines and index not in inside and index not in comment_at:
             continue  # text inside a string literal is data, not a comment
-        line = as_comment(raw) if i - 1 in inside else raw
+        line = as_comment(raw) if index in inside else raw
         if BANNER.match(raw) or (i - 1 in inside and BANNER.match(line)):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: banner comment. Delete it, the item name is the heading.")
@@ -262,11 +268,11 @@ def scan_patterns(lines, blocks, string_lines=frozenset()):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: change history in a comment. Git records that.")
             )
-        elif i - 1 not in inside:
+        elif index not in inside and comment_at.get(index):
             # A comment after code on the same line, which the anchored patterns never see.
-            trailing = TRAILING_COMMENT.search(raw)
-            if trailing:
-                text = trailing.group(1)
+            # The column comes from the lexer, so a string earlier on the line does not matter.
+            text = raw[comment_at[index]:]
+            if text.startswith("//"):
                 if STEP_NARRATION.match(text) and not STEP_REFERENCE.search(text):
                     findings.append(
                         (i, i, "R2", BLOCK, "R2: step narration. The code already shows the order.")
