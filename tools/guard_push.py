@@ -10,7 +10,8 @@ A human pushing from their own terminal is unaffected: this only sees the agent'
 After the user approves a specific push:  JITTER_PUSH_OK=1 git push ...
 
 This is a reminder, not a security control. An agent that wants to get around it can, for
-example by writing a script. It exists to catch the agent that forgets.
+example by writing a script or going through ssh. It exists to catch the agent that forgets,
+so when in doubt it blocks: a false positive costs one line, a missed push cannot be undone.
 """
 
 import json
@@ -19,36 +20,81 @@ import shlex
 import sys
 
 PUBLISHING = [
-    (("git",), "push", "git push"),
-    (("gh",), "pr create", "gh pr create"),
-    (("gh",), "release create", "gh release create"),
-    (("git",), "send-email", "git send-email"),
+    ("git", ["push"], "git push"),
+    ("gh", ["pr", "create"], "gh pr create"),
+    ("gh", ["release", "create"], "gh release create"),
+    ("git", ["send-email"], "git send-email"),
 ]
-NESTING = {"bash", "sh", "zsh", "dash", "eval", "xargs", "env", "time", "nohup", "sudo", "doas",
-           "timeout", "ssh-agent", "setsid", "stdbuf", "script"}
-# Shell grouping and control words sit in front of the real command.
-GROUPING = {"(", ")", "{", "}", "then", "do", "else", "elif", "!", "&&", "||", ";"}
+# Programs that run a command line of their own, given as a string.
+RUNS_A_STRING = {"bash", "sh", "zsh", "dash", "eval"}
+# Programs that run the command that follows their own arguments.
+WRAPPERS = {"sudo", "doas", "env", "time", "timeout", "nohup", "xargs", "setsid", "stdbuf",
+            "script", "ssh-agent", "nice", "ionice"}
+GROUPING = {"(", ")", "{", "}", "then", "do", "else", "elif", "!", "&&", "||", ";", "\\"}
 GIT_OPTION_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
             "--no-replace-objects", "--no-optional-locks"}
 HELP = {"--help", "-h"}
-
+APPROVED = "JITTER_PUSH_OK=1"
+PROGRAMS = {command for command, _, _ in PUBLISHING}
 
 SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
+ARITHMETIC = re.compile(r"\$\(\([^)]*\)\)")
+# A heredoc opener, not `<<<` and not a left shift.
+HEREDOC = re.compile(r"(?<!<)<<-?\s*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1(?![A-Za-z0-9_])")
+
+
+def quotes_balance(text):
+    """Do the quotes pair up? `'fix Bob'\\''s typo'` and `"a \\" b"` say no on a naive scan."""
+    quote = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and quote != "'":
+            i += 2
+            continue
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        i += 1
+    return quote is None
+
+
+def strip_heredocs(command):
+    """Drop heredoc bodies. Their text is data, not commands."""
+    out = []
+    terminator = None
+    for line in command.splitlines():
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        out.append(line)
+        found = HEREDOC.search(ARITHMETIC.sub(" ", line))
+        if found:
+            terminator = found.group(2)
+    return "\n".join(out)
 
 
 def segments(command):
     """Split into the pieces a shell would run separately, ignoring separators inside quotes."""
     text = strip_heredocs(command)
     if not quotes_balance(text):
+        # Over-block rather than under-block: a missed push is the expensive direction.
         return [p.strip() for p in re.split(r"\n|;|&&|\|\||\||&|\$\(|`", text) if p.strip()]
+
     parts = []
     current = []
     quote = None
     i = 0
     while i < len(text):
         ch = text[i]
-        if ch == "\\" and quote != "'":
+        if ch == "\\" and quote != "'" and i + 1 < len(text):
+            if text[i + 1] == "\n":
+                i += 2  # a line continuation joins the two lines, it does not separate them
+                continue
             current.append(text[i:i + 2])
             i += 2
             continue
@@ -75,43 +121,6 @@ def segments(command):
     return [p.strip() for p in parts if p.strip()]
 
 
-def quotes_balance(text):
-    """Do the quotes pair up? `'fix Bob'\\''s typo'` and `"a \\" b"` say no on a naive scan."""
-    quote = None
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if ch == "\\" and quote != "'":
-            i += 2
-            continue
-        if quote:
-            if ch == quote:
-                quote = None
-        elif ch in "\"'":
-            quote = ch
-        i += 1
-    return quote is None
-
-
-def strip_heredocs(command):
-    """Drop heredoc bodies. Their text is data, not commands."""
-    lines = command.splitlines()
-    out = []
-    terminator = None
-    for line in lines:
-        if terminator is not None:
-            if line.strip() == terminator:
-                terminator = None
-            continue
-        found = re.search(
-            r"(?<!<)<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?\s*(?:[|&>;]|$)", line
-        )
-        out.append(line)
-        if found:
-            terminator = found.group(1)
-    return "\n".join(out)
-
-
 def words(segment):
     """Tokenise, dropping a trailing shell comment. Quoted text stays as one token."""
     try:
@@ -122,53 +131,63 @@ def words(segment):
         return segment.split()
 
 
+def strip_prefix(tokens):
+    """Drop grouping words, continuations and leading VAR=value assignments."""
+    approved = False
+    changed = True
+    while changed and tokens:
+        changed = False
+        while tokens and (tokens[0] in GROUPING or not tokens[0].strip()):
+            tokens.pop(0)
+            changed = True
+        while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+            approved = approved or tokens[0] == APPROVED
+            tokens.pop(0)
+            changed = True
+    return tokens, approved
+
+
 def publishing_in(segment, depth=0):
     """The name of the publishing command this segment runs, or None."""
-    tokens = words(segment)
-    if not tokens:
+    return in_tokens(words(segment), depth)
+
+
+def in_tokens(tokens, depth=0):
+    tokens, approved = strip_prefix(list(tokens))
+    if approved or not tokens:
         return None
 
-    approved = False
-    while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
-        if tokens[0] == "JITTER_PUSH_OK=1":
-            approved = True
-        tokens.pop(0)
-    if approved:
-        return None
-    if not tokens:
-        return None
+    program = tokens[0].rsplit("/", 1)[-1]
 
-    while tokens and tokens[0] in GROUPING:
-        tokens.pop(0)
-    if not tokens:
+    if depth < 3 and program in RUNS_A_STRING:
+        # The command sits in an argument, as in `bash -c 'cd x && git push'`.
+        for token in tokens[1:]:
+            for piece in segments(token):
+                found = publishing_in(piece, depth + 1)
+                if found:
+                    return found
         return None
 
-    program = tokens[0].rsplit("/", 1)[-1]  # /usr/bin/git is git
-
-    if program in NESTING and depth < 3:
-        rest = tokens[1:]
-        # `bash -c "git push"` hides it in one token, `sudo git push` in the remainder, and
-        # `timeout 60 git push` behind the wrapper's own arguments.
-        candidates = list(rest) + [" ".join(rest[k:]) for k in range(len(rest))]
-        for candidate in candidates:
-            for piece in segments(candidate):
-                nested = publishing_in(piece, depth + 1)
-                if nested:
-                    return nested
+    if depth < 3 and program in WRAPPERS:
+        # The real command follows the wrapper's own arguments, as in `timeout 60 git push`.
+        for index, token in enumerate(tokens[1:], start=1):
+            name = token.rsplit("/", 1)[-1]
+            if name in RUNS_A_STRING or name in WRAPPERS or name in PROGRAMS:
+                return in_tokens(tokens[index:], depth + 1)
         return None
 
     if "--dry-run" in tokens or HELP & set(tokens):
         return None
 
-    for programs, subcommand, name in PUBLISHING:
-        if program not in programs:
+    for command, subcommand, name in PUBLISHING:
+        if program != command:
             continue
         rest = tokens[1:]
         while rest and (
             rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
         ):
             rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
-        if " ".join(rest[: len(subcommand.split())]) == subcommand:
+        if rest[: len(subcommand)] == subcommand:
             return name
     return None
 
@@ -188,7 +207,7 @@ def main():
                 "this session shows it was given.\n"
                 "Ask them in one line, naming the branch and the remote. Committing locally "
                 "is fine meanwhile.\n"
-                "Once they approve, run the same command prefixed with JITTER_PUSH_OK=1.\n".format(name)
+                "Once they approve, run the same command prefixed with {}.\n".format(name, APPROVED)
             )
             return 2
     return 0

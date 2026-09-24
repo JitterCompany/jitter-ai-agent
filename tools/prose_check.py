@@ -23,6 +23,9 @@ TEXT_SUFFIXES = {".md", ".markdown", ".txt", ".typ", ".rst"}
 
 ALLOW_MARKER = "prose-check: allow"
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+BACKTICK_FENCE = re.compile(r"^\s*(`{3,})")
+# In reStructuredText ~~~~ underlines a heading, so only markdown treats it as a fence.
+TILDE_FENCE_SUFFIXES = {".md", ".markdown"}
 TABLE_ROW = re.compile(r"^\s*\|")
 HTML_TAG = re.compile(r"<[a-zA-Z/][^>]*>")
 INLINE_CODE = re.compile(r"`[^`]*`")
@@ -34,13 +37,16 @@ SEMICOLON_CHAIN = re.compile(r"[^;\n`]{40,};\s+[a-z]")  # a long clause, then an
 
 def scan(path):
     findings = []
+    fence_pattern = (
+        FENCE if Path(path).suffix.lower() in TILDE_FENCE_SUFFIXES else BACKTICK_FENCE
+    )
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
         return findings
     fence = None
     for lineno, line in enumerate(lines, start=1):
-        marker = FENCE.match(line)
+        marker = fence_pattern.match(line)
         if marker:
             opening = marker.group(1)
             if fence is None:

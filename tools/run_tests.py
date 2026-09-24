@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
@@ -206,7 +207,7 @@ def comment_lint_cases(tmp, ok):
     code, out = run("comment_lint.py", [str(trailing)])
     ok &= check(
         "a block comment after code is seen, banner included",
-        code == 1 and "R17" in out and "banner" in out, out,
+        code == 1 and "R17" in out and "R2" in out, out,
     )
 
     with_strings = tmp / "with_strings.rs"
@@ -251,24 +252,67 @@ def prose_cases(tmp, ok):
     written.write_text("Clean line.\nA new line with an em dash \u2014 here.\n")
     result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
         "file_path": str(written), "new_string": "A new line with an em dash \u2014 here.\n"}})
-    ok &= check("prose hook blocks an em dash this edit wrote", result[0] == 2, result[1])
+    ok &= check("P1 blocks an em dash this edit wrote", result[0] == 2, result[1])
 
     old = tmp / "old.md"
     old.write_text("An old line with an em dash \u2014 here.\nNew line, clean.\n")
     result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
         "file_path": str(old), "new_string": "New line, clean.\n"}})
-    ok &= check("prose hook ignores a dash this edit did not write", result[0] == 0, result[1])
+    ok &= check("P1 ignores a dash this edit did not write", result[0] == 0, result[1])
 
-    code = tmp / "code.rs"
-    code.write_text("// an em dash \u2014 in Rust is for the comment check, not this one\n")
+    rust = tmp / "code.rs"
+    rust.write_text("// an em dash \u2014 in Rust is the comment check's business\n")
     result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
-        "file_path": str(code), "new_string": "// an em dash \u2014 in Rust\n"}})
-    ok &= check("prose hook only judges text files", result[0] == 0, result[1])
+        "file_path": str(rust), "new_string": "// an em dash \u2014 in Rust\n"}})
+    ok &= check("the prose hook only judges text files", result[0] == 0, result[1])
 
     doc = tmp / "prose.md"
-    doc.write_text("A sentence with an em dash — like this.\nA range of 10–100 MHz is fine.\n")
+    doc.write_text("A sentence with an em dash \u2014 like this.\nA range of 10\u2013100 MHz is fine.\n")
     code, out = run("prose_check.py", [str(doc)])
-    ok &= check("prose_check flags em dashes, allows numeric ranges", code == 1 and out.count("P1") == 1, out)
+    ok &= check("P1 flags em dashes, allows numeric ranges", code == 1 and out.count("P1") == 1, out)
+
+    marked = tmp / "marked.md"
+    marked.write_text("A quoted dash \u2014 kept. prose-check: allow\n")
+    code, out = run("prose_check.py", [str(marked)])
+    ok &= check("the prose allow marker works", code == 0, out)
+
+    fenced = tmp / "fenced.md"
+    fenced.write_text(
+        "````markdown\n```\nA fence inside a fence \u2014 still code.\n```\n````\n\n"
+        "~~~c\nint x; /* a tilde fence \u2014 also code */\n~~~\n\n"
+        "Inline `a \u2014 b` code is fine.\n\n    indented \u2014 code is fine\n"
+    )
+    code, out = run("prose_check.py", [str(fenced)])
+    ok &= check("nested fences, tilde fences, inline and indented code are not prose", code == 0, out)
+
+    underline = tmp / "section.rst"
+    underline.write_text("Heading\n~~~~~~~\n\nA line with an em dash \u2014 here.\n")
+    code, out = run("prose_check.py", [str(underline)])
+    ok &= check("an rst section underline is not a code fence", code == 1 and "P1" in out, out)
+
+    judgement = tmp / "judgement.md"
+    judgement.write_text(
+        "Init the driver before the measurement task starts and nothing else runs; "
+        "otherwise the first conversion returns stale data.\n"
+        "An aside (the pinned toolchain; see rustup) is not two sentences welded together.\n"
+        "| a | b; c is a table cell with plenty of words in it, not two sentences |\n"
+    )
+    code, out = run("prose_check.py", [str(judgement)])
+    ok &= check(
+        "P2 fires on a chained sentence, not on an aside or a table row",
+        code == 1 and out.count("P2") == 1, out,
+    )
+
+    result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
+        "file_path": str(judgement),
+        "new_string": "Init the driver before the measurement task starts and nothing else runs; "
+                      "otherwise the first conversion returns stale data.\n"}})
+    ok &= check("P2 never interrupts an edit, only P1 does", result[0] == 0, result[1])
+
+    odd = tmp / "2026-01-01: draft.md"
+    odd.write_text("A clean line.\n")
+    code, out = run("prose_check.py", [str(odd)])
+    ok &= check("a colon in the path does not crash the check", code == 0, out)
     return ok
 
 
@@ -323,48 +367,88 @@ def repo_cases(tmp, ok):
     code, out = run("layout_check.py", [], cwd=repo)
     ok &= check("layout_check honours .jitter-lint-ignore for a frozen tree", code == 0, out)
     (repo / ".jitter-lint-ignore").unlink()
+
+    # A vendored tree carries its own ignore file, which is what comment_lint already honours.
+    (repo / "src" / "thing" / ".jitter-lint-ignore").write_text("mod.rs\n")
+    code, out = run("layout_check.py", [], cwd=repo)
+    ok &= check("layout_check walks up to a nested .jitter-lint-ignore", code == 0, out)
+    (repo / "src" / "thing" / ".jitter-lint-ignore").unlink()
     return ok
 
 
+GUARD_PUSHES = [
+    ("git push origin main", "a plain push"),
+    ("git status && \\\n git push", "a push after a line continuation"),
+    ("git commit -m 'fix Bob'\\''s typo'\ngit push", "an apostrophe does not hide the next push"),
+    ("echo it's fine; git push origin main", "an unbalanced quote does not hide a push"),
+    ('echo "a \\" b"; git push origin main', "an escaped quote does not hide a push"),
+    ("bash -c 'cd /repo && git push origin main'", "an operator inside bash -c"),
+    ('cat <<< "note"\ngit push origin main', "a here-string does not blind the guard"),
+    ("mask=$((1 << bits))\ngit push origin main", "a left shift does not blind the guard"),
+    ("git --no-pager push", "a valueless git flag"),
+    ("timeout 60 git push", "a wrapper's own arguments"),
+    ("sudo git push", "sudo"),
+    ("echo main | xargs git push origin", "xargs"),
+    ("(git push)", "a subshell"),
+    ("if true; then git push; fi", "a then branch"),
+    ("for x in a; do git push; done", "a loop body"),
+    ("echo $(git push)", "command substitution"),
+    ("/usr/bin/git push", "an absolute path"),
+    ("git -C /repo push origin main", "git -C"),
+    ("gh pr create --fill", "gh pr create"),
+    ("cargo publish --dry-run && git push origin main", "a dry run elsewhere does not excuse it"),
+    ('echo "JITTER_PUSH_OK=1"; git push', "a quoted mention of the escape is not approval"),
+]
+
+GUARD_ORDINARY = [
+    ("git push --help", "asking for help"),
+    ("git push --dry-run origin main", "a dry run"),
+    ("JITTER_PUSH_OK=1 git push -u origin HEAD", "an approved push"),
+    ("grep -rn git push docs/", "an unquoted grep"),
+    ('git commit -m "wip"   # then git push later', "a trailing comment"),
+    ("cat <<'EOF' > doc.md\ngit push origin main\nEOF", "a heredoc body holding a real push"),
+    ("cat <<EOF 2>/dev/null\ngit push origin main\nEOF", "a heredoc opener with a redirect"),
+    ("tee f <<EOF 1>/dev/null\ngit push origin main\nEOF", "a heredoc opener before a redirect"),
+    ('timeout 60 echo "git push"', "a wrapper running something else"),
+    ("echo 'careful; git push origin main'", "a separator inside quotes"),
+    ("git commit -m 'x' && git status", "local git work"),
+    ("git pull --rebase", "a pull"),
+    ("gh pr list", "listing PRs"),
+    ("sed -i 's/git push/x/' doc.md", "rewriting the words in a file"),
+    ("timeout 300 cargo test --features test --locked", "an ordinary wrapped command"),
+]
+
+
 def guard_cases(ok):
-    blocked = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git push -u origin HEAD"}})
-    ok &= check("guard_push blocks an unapproved push (W2)", blocked[0] == 2, blocked[1])
-
-    pr = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "gh pr create --fill"}})
-    ok &= check("guard_push blocks gh pr create", pr[0] == 2, pr[1])
-
-    approved = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "JITTER_PUSH_OK=1 git push"}})
-    ok &= check("guard_push lets an approved push through", approved[0] == 0, approved[1])
-
-    local = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git commit -m 'x' && git status"}})
-    ok &= check("guard_push ignores local git work", local[0] == 0, local[1])
-
-    mention = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": 'grep -rn "git push" docs/'}})
-    ok &= check("guard_push ignores a quoted mention of a push", mention[0] == 0, mention[1])
-
-    dry = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git push --dry-run origin main"}})
-    ok &= check("guard_push allows a dry run", dry[0] == 0, dry[1])
-
-    for command, want, name in [
-        ("git -C /repo push origin main", 2, "git -C is still a push"),
-        ("sudo git push", 2, "sudo does not hide a push"),
-        ("time git push origin main", 2, "time does not hide a push"),
-        ("echo main | xargs git push origin", 2, "xargs does not hide a push"),
-        ("(git push)", 2, "a subshell does not hide a push"),
-        ("if true; then git push; fi", 2, "a then branch does not hide a push"),
-        ("for x in a; do git push; done", 2, "a loop body does not hide a push"),
-        ("echo $(git push)", 2, "command substitution does not hide a push"),
-        ("/usr/bin/git push", 2, "an absolute path is still git"),
-        ("echo 'careful; git push origin main'", 0, "a separator inside quotes is not a separator"),
-        ("cargo publish --dry-run && git push origin main", 2, "a dry run elsewhere does not excuse a push"),
-        ('echo "JITTER_PUSH_OK=1"; git push origin main', 2, "a quoted mention of the escape is not approval"),
-        ("bash -c 'git push origin main'", 2, "a push inside bash -c is seen"),
-        ("grep -rn git push docs/", 0, "an unquoted grep is not a push"),
-        ('git commit -m "wip"   # then git push later', 0, "a trailing comment does not block the commit"),
-        ("cat <<'EOF' > README.md\nrun git push when ready\nEOF", 0, "a heredoc body is data"),
-    ]:
+    for command, name in GUARD_PUSHES:
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
-        ok &= check("guard_push: " + name, result[0] == want, result[1])
+        ok &= check("guard blocks: " + name, result[0] == 2, result[1])
+    for command, name in GUARD_ORDINARY:
+        result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
+        ok &= check("guard allows: " + name, result[0] == 0, result[1])
+
+    # The candidate expansion used to be quadratic, which cost seconds on an ordinary command.
+    long_command = "timeout 300 cargo test " + " ".join("--arg{}".format(i) for i in range(800))
+    started = time.time()
+    hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": long_command}})
+    elapsed = time.time() - started
+    ok &= check("guard stays fast on a long command", elapsed < 1.0, "{:.2f}s".format(elapsed))
+    return ok
+
+
+def hook_wiring_cases(ok):
+    """The session hooks must not interpolate a missing plugin root into the session."""
+    wiring = json.loads((TOOLS.parent / "hooks" / "hooks.json").read_text())
+    unguarded = [
+        entry["command"]
+        for event in wiring["hooks"].values()
+        for matcher in event
+        for entry in matcher["hooks"]
+        if "CLAUDE_PLUGIN_ROOT" in entry["command"]
+        and '[ -n "${CLAUDE_PLUGIN_ROOT}" ]' not in entry["command"]
+        and "command -v python3" not in entry["command"]
+    ]
+    ok &= check("every session hook guards against a missing plugin root", not unguarded, "\n".join(unguarded))
     return ok
 
 
@@ -377,6 +461,7 @@ def main():
         ok = prose_cases(tmp, ok)
         ok = repo_cases(tmp, ok)
         ok = guard_cases(ok)
+    ok = hook_wiring_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))
     return 0 if ok else 1
 

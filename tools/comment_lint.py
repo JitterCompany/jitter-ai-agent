@@ -253,14 +253,20 @@ def scan_patterns(lines, blocks, string_lines=frozenset(), comment_at=None):
     findings = []
     for i, raw in enumerate(lines, start=1):
         index = i - 1
-        if index in string_lines and index not in inside and index not in comment_at:
-            continue  # text inside a string literal is data, not a comment
+        if index in string_lines and index not in inside:
+            if index not in comment_at:
+                continue  # text inside a string literal is data, not a comment
+            raw = " " * comment_at[index] + raw[comment_at[index]:]  # judge only the comment
         line = as_comment(raw) if index in inside else raw
-        if BANNER.match(raw) or (i - 1 in inside and BANNER.match(line)):
+        # A block can open after code, so also read it from the /* onward.
+        variants = [line]
+        if index in inside and "/*" in raw:
+            variants.append(as_comment(raw[raw.index("/*"):]))
+        if BANNER.match(raw) or (index in inside and any(BANNER.match(v) for v in variants)):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: banner comment. Delete it, the item name is the heading.")
             )
-        elif STEP_NARRATION.match(line) and not STEP_REFERENCE.search(line):
+        elif any(STEP_NARRATION.match(v) for v in variants) and not STEP_REFERENCE.search(line):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: step narration. The code already shows the order.")
             )

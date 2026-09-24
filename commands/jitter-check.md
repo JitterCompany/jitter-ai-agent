@@ -10,6 +10,7 @@ python3 "$JITTER_ROOT/tools/comment_lint.py" $(git ls-files '*.rs')
 python3 "$JITTER_ROOT/tools/path_leak_check.py" $(git ls-files)
 python3 "$JITTER_ROOT/tools/kicad_project_check.py"
 python3 "$JITTER_ROOT/tools/layout_check.py"
+python3 "$JITTER_ROOT/tools/prose_check.py" --tracked
 ```
 
 Skip the ones with nothing to scan. The KiCad check only makes sense in a repo with `*.kicad_pro`.
@@ -19,7 +20,7 @@ Then report, briefly:
 - the count per check, and the files with the most hits
 - which hits are worth fixing now and which look like false positives, with your reasoning
 - for a false positive, whether the fix is a threshold, a pattern, a `// jitter-lint: allow <rule> <reason>` marker, or a `.jitter-lint-ignore` entry for a vendored tree
-- note that R3 findings are advisory, so a long run that says why is not a problem
+- note that R3 and P2 findings are advisory: a long run that says why, or a semicolon inside brackets, is not a problem
 
 Do not fix anything yet unless $ARGUMENTS says to. If it does, fix and show the diff.
 
