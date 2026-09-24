@@ -9,6 +9,15 @@ Loaded automatically in a repo that contains KiCad files, on top of `core.md`.
 - Strip references to the source project from files and commit messages when moving a design between repos.
 - Documentation about modules, antennas and RF belongs in the hardware repo, not the firmware repo.
 
+## KiCad rewrites files on open
+
+Opening a project is enough for KiCad to rewrite `.kicad_pro`, and it drops things while doing it. ERC and DRC exclusions are the usual casualty: a list of 13 reviewed exclusions comes back empty, and the next CI run is suddenly full of violations that were signed off months ago.
+
+- Check `git status` and `git diff` on `*.kicad_pro` before committing, even when the intent was only to look at a schematic.
+- Run `python3 tools/kicad_project_check.py` (jitter-ai-agent). It compares the working copy against git and reports cleared exclusions, dropped severity overrides, emptied text variables and changed net classes.
+- Restore what was cleared with `git checkout -- <file>`, or re-apply the exclusions in KiCad, before committing anything else in that repo.
+- Never bulk-accept a `.kicad_pro` diff. Read it, it is JSON and it is short.
+
 ## CI and releases
 
 - A new hardware project sets up CI on [JitterCompany/pcb_release](https://github.com/JitterCompany/pcb_release): the submodule, the `ci-hardware` and `ci-hardware-release` workflows, `release.toml` and `pinmap.config.toml` per board. The `pcb-ci-setup` skill does this.

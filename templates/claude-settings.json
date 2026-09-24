@@ -3,7 +3,7 @@
     "jitter": {
       "source": {
         "source": "github",
-        "repo": "JitterCompany/jitter-agent"
+        "repo": "JitterCompany/jitter-ai-agent"
       }
     }
   },

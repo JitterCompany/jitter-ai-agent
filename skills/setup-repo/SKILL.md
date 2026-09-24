@@ -23,7 +23,9 @@ If the repo has no `rustfmt.toml`, copy `templates/rustfmt.toml`. Formatting is 
 
 ## 4. Path leak check
 
-Offer to install `tools/path_leak_check.py --staged` as a pre-commit hook. It blocks `/home/<user>`, personal email addresses, keys and tokens from entering a commit. In a KiCad repo, mention the `fix-kicad-paths` skill for the paths KiCad bakes into project files.
+Offer to install `tools/path_leak_check.py --staged` as a pre-commit hook. It blocks `/home/<user>`, personal email addresses, keys and tokens from entering a commit.
+
+In a KiCad repo, add `tools/kicad_project_check.py` to the same hook, so a `.kicad_pro` that lost its ERC/DRC exclusions cannot be committed by accident. Mention the `fix-kicad-paths` skill for the absolute paths KiCad bakes into project files.
 
 ## 5. Vendored code
 

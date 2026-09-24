@@ -1,25 +1,40 @@
 ---
 name: style-feedback
-description: Turn a correction from the user into a rule in the shared jitter-agent repo, so every colleague's next session gets it. Use when the user says something should be remembered for the team, corrects the house style, or asks to add or change a shared rule or convention.
+description: Add, change or override a shared Jitter rule in the jitter-ai-agent repo, so every colleague's next session gets it. Use when the user says "remember this across all projects", "new company-wide rule", "add this to the house rules", when they correct the house style or conventions, or when they want an exception to a rule that just shaped your behaviour.
 ---
 
-# Promote a correction to the team rules
+# Change the shared rules
 
-Use this when a correction is general. Something that is only true for this machine, this checkout or this one project belongs in personal memory or in the repo's own CLAUDE.md instead.
+The rules loaded in this session come from `JitterCompany/jitter-ai-agent`. This skill covers two cases: adding a rule, and overriding one.
 
-## Steps
+## A. New or changed rule
 
-1. **Write the rule.** One sentence, imperative, plus the why in a clause. Add a bad-to-good example pair if the rule is about code.
-2. **Pick the file** in the `jitter-agent` clone:
-   - `rules/core.md` if it is short, universal and worth having in every session. This file is loaded on every session start, so it stays near 40 lines. Adding a line usually means shortening another.
+1. **Check the scope.** Company-wide goes in this repo. One project goes in that repo's `CLAUDE.md`. One machine or one person's taste goes in their personal memory or `~/.claude/CLAUDE.md`. Ask which of the three when it is not obvious.
+2. **Write it.** One imperative sentence with the why in a clause. Add a bad-to-good pair when it is about code. Give it the next free id in its section (R, W, C in `core.md`).
+3. **Pick the file:**
+   - `rules/core.md` if it is short, universal and worth loading into every session. This file is injected at every session start, so it stays near 45 lines. Adding a line usually means shortening another.
    - `rules/rust-style.md` for Rust detail and examples.
    - `rules/prose.md` for writing style.
-   - `rules/hardware.md` for KiCad, PCB and lab rules.
-3. **Check for a duplicate** first. Update the existing line rather than adding a near-copy.
-4. **Consider a check instead.** If a script can catch it, add it to `tools/comment_lint.py` or `tools/path_leak_check.py`, or as a clippy lint in `templates/workspace-lints.toml`. A check beats a sentence, because it lands in the agent's context exactly when it matters.
-5. **Commit on a branch**, one rule per branch, with a commit message that says what changed and why.
-6. **Ask before pushing.** Never push or open the PR until the user approves that specific push.
+   - `rules/hardware.md` for KiCad, PCB and lab.
+   - A new `skills/<name>/SKILL.md` when it is a procedure rather than a rule, for example a repeatable task with steps and verification.
+4. **Check for a duplicate.** Grep the repo and update the existing line instead of adding a near-copy.
+5. **Prefer a check over a sentence.** If a script can catch it, add it to `tools/comment_lint.py`, `tools/path_leak_check.py`, `tools/kicad_project_check.py`, or as a clippy lint in `templates/workspace-lints.toml`. A check lands in context exactly when it matters and never gets summarized away. Tune it against a real repo and report the hit count before committing it.
+6. **Branch and commit.** One rule per branch, named `rule/<short-slug>`. The commit message says what the rule is and why it exists.
+7. **Ask before pushing** (W2). Then open the PR and give the user the link.
+
+## B. Override a rule
+
+When a rule caused something the user did not want, name the id, quote it in one line, then offer:
+
+| Level | Where it goes |
+|---|---|
+| Just this once | Nothing written. Do it their way now. |
+| This project | An exception in the repo's `CLAUDE.md`, naming the rule id and the reason. |
+| Just me | Their `~/.claude/CLAUDE.md` or personal memory, naming the rule id. |
+| Everybody | Edit or delete the rule in `jitter-ai-agent`, branch and PR as in part A. |
+
+Apply the choice to the work in front of you straight away, do not only record it.
 
 ## Finding the clone
 
-The rules loaded in this session live under `${CLAUDE_PLUGIN_ROOT}`, which is the plugin cache when the plugin came from the marketplace. Do not edit that copy, it is overwritten on update. Ask the user where their `jitter-agent` working clone is, or clone it fresh, make the change there, then `/plugin marketplace update jitter` once it is merged.
+`${CLAUDE_PLUGIN_ROOT}` is the plugin cache when the plugin came from the marketplace, and it is overwritten on update. Never edit there. Ask the user where their `jitter-ai-agent` working clone is, or clone it fresh, edit there, and run `/plugin marketplace update jitter` once the change is merged.

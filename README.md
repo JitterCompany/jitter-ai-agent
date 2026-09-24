@@ -1,4 +1,4 @@
-# jitter-agent
+# jitter-ai-agent
 
 Jitter's shared conventions for AI coding agents, plus the tooling that enforces them. One place, versioned, improved by PR, loaded automatically in everyone's sessions.
 
@@ -14,6 +14,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `rules/hardware.md` | KiCad, PCB, lab |
 | `tools/comment_lint.py` | Comment-bloat check for Rust, standalone or as an edit hook |
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
+| `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |
 | `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json` |
 | `hooks/`, `skills/`, `agents/` | Claude Code delivery: the session hooks, the skills and the review agent |
 
@@ -26,7 +27,7 @@ Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. E
 Personal install, without touching a repo:
 
 ```sh
-/plugin marketplace add JitterCompany/jitter-agent
+/plugin marketplace add JitterCompany/jitter-ai-agent
 /plugin install jitter@jitter
 ```
 
@@ -43,6 +44,7 @@ The `setup-repo` skill does the rest of the wiring (clippy lints, rustfmt, pre-c
 ```sh
 python3 tools/comment_lint.py $(git ls-files '*.rs')     # add --ratio for a noisier sweep
 python3 tools/path_leak_check.py --staged                 # good as a pre-commit hook
+python3 tools/kicad_project_check.py                      # in a KiCad repo, before committing
 ```
 
 Both work on Linux and macOS with a stock python3, exit 0 when clean, and print `file:line: problem`.
