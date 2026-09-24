@@ -85,6 +85,12 @@ The push guard is a reminder, not a security control. An agent determined to get
 
 The one thing the agent is stopped from doing outright is pushing (W2), because that is the only rule here whose violation cannot be undone.
 
+## What the self-tests are, and are not
+
+`tools/run_tests.py` pins the contract: thresholds (a run of 4 is silent, 5 speaks), pattern widths (four fill characters are a banner), every row of the push guard's table, and every separator that starts a command. Deliberate mutations of those values fail the suite, which is checked by mutating the tools and re-running it.
+
+It is still a check on the tools, not on your repo. A real change to a tool wants a measurement over a real repo as well, which is what every number in this README came from. Green tests mean the tools kept their promises, not that the promises are the right ones.
+
 ## Change a rule
 
 1. Branch, edit the file under `rules/`, one rule per PR. Give it the next free number in that file.

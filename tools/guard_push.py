@@ -35,6 +35,7 @@ GIT_OPTION_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", 
 GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
             "--no-replace-objects", "--no-optional-locks"}
 HELP = {"--help", "-h"}
+DRY_RUN = {"--dry-run", "-n"}
 APPROVED = "JITTER_PUSH_OK=1"
 PROGRAMS = {command for command, _, _ in PUBLISHING}
 
@@ -168,15 +169,20 @@ def in_tokens(tokens, depth=0):
                     return found
         return None
 
-    if depth < 3 and program in WRAPPERS:
+    if program in WRAPPERS:
         # The real command follows the wrapper's own arguments, as in `timeout 60 git push`.
+        # A stack of wrappers does not count against the nesting budget, because each hop
+        # shrinks the token list, and `sudo env timeout 60 nice git push` is still one push.
         for index, token in enumerate(tokens[1:], start=1):
+            previous = tokens[index - 1]
+            if previous.startswith("-") and "=" not in previous:
+                continue  # this token is that option's value, as in `sudo -u git`
             name = token.rsplit("/", 1)[-1]
             if name in RUNS_A_STRING or name in WRAPPERS or name in PROGRAMS:
-                return in_tokens(tokens[index:], depth + 1)
+                return in_tokens(tokens[index:], depth)
         return None
 
-    if "--dry-run" in tokens or HELP & set(tokens):
+    if DRY_RUN & set(tokens) or HELP & set(tokens):
         return None
 
     for command, subcommand, name in PUBLISHING:

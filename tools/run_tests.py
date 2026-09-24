@@ -202,6 +202,34 @@ def comment_lint_cases(tmp, ok):
         code == 1 and out.count("R2") == 2, out,
     )
 
+    # Contract: the threshold is 4, so 4 is silent and 5 speaks. A test that only uses an
+    # 8-line run passes for any threshold from 1 to 7, which is how a threshold change slips by.
+    at_limit = tmp / "at_limit.rs"
+    at_limit.write_text("// a\n// b\n// c\n// d\nfn x() {}\n")
+    code, out = run("comment_lint.py", [str(at_limit)])
+    ok &= check("a run of exactly 4 is silent", code == 0, out)
+
+    over_limit = tmp / "over_limit.rs"
+    over_limit.write_text("// a\n// b\n// c\n// d\n// e\nfn x() {}\n")
+    code, out = run("comment_lint.py", [str(over_limit)])
+    ok &= check("a run of 5 is reported", code == 1 and "R3" in out, out)
+
+    # Contract: four fill characters make a banner.
+    short_banner = tmp / "short_banner.rs"
+    short_banner.write_text("// ====\nfn x() {}\n")
+    code, out = run("comment_lint.py", [str(short_banner)])
+    ok &= check("four fill characters are already a banner", code == 1 and "R2" in out, out)
+
+    # The marker sits on the line above the run, not inside it, so the window matters.
+    above = tmp / "above.rs"
+    above.write_text(
+        "/// jitter-lint: allow R3 the derivation belongs here\n"
+        + "".join("// line {}\n".format(i) for i in range(6))
+        + "fn x() {}\n"
+    )
+    code, out = run("comment_lint.py", [str(above)])
+    ok &= check("an allow marker on the line above the run works", code == 0, out)
+
     trailing = tmp / "trailing.rs"
     trailing.write_text("let x = 1; /* =====================\n   banner\n   ===================== */\n")
     code, out = run("comment_lint.py", [str(trailing)])
@@ -240,6 +268,15 @@ def path_leak_cases(tmp, ok):
     code, out = run("path_leak_check.py", [str(keys)])
     ok &= check("a PEM header constant is not a leak without key material", code == 0, out)
 
+    # Assembled at runtime so this file does not trip the check it is testing.
+    real_key = tmp / "key.pem"
+    real_key.write_text(
+        "-----BEGIN EC PRIVATE {}-----".format("KEY")
+        + "MHcCAQEEIBvQ1Z8mS0Yk9dR3pL7wX2nT4uC6eA8fG0hJ1kM3nP5qoAoGCCqGSM49\n"
+    )
+    code, out = run("path_leak_check.py", [str(real_key)])
+    ok &= check("a PEM header with key material after it is a leak", code == 1, out)
+
     modules = tmp / ".gitmodules"
     modules.write_text("\turl = git@github.com:JitterCompany/pcb_release.git\n")
     code, out = run("path_leak_check.py", [str(modules)])
@@ -270,6 +307,11 @@ def prose_cases(tmp, ok):
     doc.write_text("A sentence with an em dash \u2014 like this.\nA range of 10\u2013100 MHz is fine.\n")
     code, out = run("prose_check.py", [str(doc)])
     ok &= check("P1 flags em dashes, allows numeric ranges", code == 1 and out.count("P1") == 1, out)
+
+    en_dash = tmp / "en_dash.md"
+    en_dash.write_text("A range of 10\u2013100 MHz is fine, a pause \u2013 like this \u2013 is not.\n")
+    code, out = run("prose_check.py", [str(en_dash)])
+    ok &= check("an en dash used as punctuation is P1", code == 1 and "P1" in out, out)
 
     marked = tmp / "marked.md"
     marked.write_text("A quoted dash \u2014 kept. prose-check: allow\n")
@@ -395,6 +437,14 @@ GUARD_PUSHES = [
     ("echo $(git push)", "command substitution"),
     ("/usr/bin/git push", "an absolute path"),
     ("git -C /repo push origin main", "git -C"),
+    ("git send-email --to a@b patches/", "git send-email, the fourth table row"),
+    ("gh release create v1.0", "gh release create, the third table row"),
+    ("eval \"git push origin main\"", "eval runs a string"),
+    ("env GIT_TRACE=1 git push", "env passes through to the real command"),
+    ("sleep 1 & git push", "a background separator still starts a command"),
+    ("sudo -u git git push", "an option value is not the program"),
+    ("sudo --user=git git push", "an inline option value is not the program"),
+    ("sudo env timeout 60 nice git push", "a stack of wrappers"),
     ("gh pr create --fill", "gh pr create"),
     ("cargo publish --dry-run && git push origin main", "a dry run elsewhere does not excuse it"),
     ('echo "JITTER_PUSH_OK=1"; git push', "a quoted mention of the escape is not approval"),
@@ -402,6 +452,8 @@ GUARD_PUSHES = [
 
 GUARD_ORDINARY = [
     ("git push --help", "asking for help"),
+    ("git push -n origin main", "the short form of --dry-run"),
+    ("sudo -u deploy cargo build", "a wrapper running something else entirely"),
     ("git push --dry-run origin main", "a dry run"),
     ("JITTER_PUSH_OK=1 git push -u origin HEAD", "an approved push"),
     ("grep -rn git push docs/", "an unquoted grep"),
@@ -446,7 +498,6 @@ def hook_wiring_cases(ok):
         for entry in matcher["hooks"]
         if "CLAUDE_PLUGIN_ROOT" in entry["command"]
         and '[ -n "${CLAUDE_PLUGIN_ROOT}" ]' not in entry["command"]
-        and "command -v python3" not in entry["command"]
     ]
     ok &= check("every session hook guards against a missing plugin root", not unguarded, "\n".join(unguarded))
     return ok
