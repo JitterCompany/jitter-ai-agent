@@ -9,16 +9,9 @@
   },
   "plugins": [
     {
-      "name": "jitter-rust",
-      "source": "./claude/plugins/jitter-rust",
-      "description": "Jitter Rust style, working rules and the comment-bloat check",
-      "version": "0.1.0",
-      "category": "development"
-    },
-    {
-      "name": "jitter-hw",
-      "source": "./claude/plugins/jitter-hw",
-      "description": "Jitter hardware rules and the KiCad skills (CI setup, pinmap, path fixing, sim reports)",
+      "name": "jitter",
+      "source": "./",
+      "description": "Jitter house rules: Rust style, working conventions, comment-bloat and path-leak checks, KiCad skills",
       "version": "0.1.0",
       "category": "development"
     }

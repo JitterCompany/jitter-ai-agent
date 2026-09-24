@@ -5,11 +5,11 @@ description: Wire a Jitter repo into the shared agent conventions - the plugin v
 
 # Set a repo up for the shared conventions
 
-Templates live in `${CLAUDE_PLUGIN_ROOT}/../../../templates/`. Read each one before copying, and merge rather than overwrite when the target file exists.
+Templates live in `${CLAUDE_PLUGIN_ROOT}/templates/`. Read each one before copying, and merge rather than overwrite when the target file exists.
 
 ## 1. Plugin, so colleagues get the rules automatically
 
-Merge `templates/claude-settings.json` into the repo's `.claude/settings.json` and commit it. Anyone who opens the repo is then prompted to install the marketplace and the plugin. Add `jitter-hw@jitter` too in a hardware repo.
+Merge `templates/claude-settings.json` into the repo's `.claude/settings.json` and commit it. Anyone who opens the repo is then prompted to install the marketplace and the plugin. A repo with KiCad files also gets `rules/hardware.md` automatically, nothing to add.
 
 ## 2. Clippy lints
 

@@ -1,6 +1,6 @@
 # Jitter hardware rules
 
-Loaded by the `jitter-hw` plugin. Enable it in hardware repos.
+Loaded automatically in a repo that contains KiCad files, on top of `core.md`.
 
 ## Repos and submodules
 

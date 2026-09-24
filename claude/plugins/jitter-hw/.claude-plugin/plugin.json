@@ -1,8 +1,0 @@
-{
-  "name": "jitter-hw",
-  "description": "Jitter hardware rules and the KiCad skills (CI setup, pinmap, path fixing, sim reports)",
-  "version": "0.1.0",
-  "author": {
-    "name": "Jitter"
-  }
-}

@@ -15,8 +15,8 @@ Read the diff the user names. Default to both staged and unstaged work:
 git -C <repo> diff HEAD
 ```
 
-Read `${CLAUDE_PLUGIN_ROOT}/../../../rules/rust-style.md` first, and run
-`python3 "${CLAUDE_PLUGIN_ROOT}/../../../tools/comment_lint.py"` over the changed `.rs` files. The
+Read `${CLAUDE_PLUGIN_ROOT}/rules/rust-style.md` first, and run
+`python3 "${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py"` over the changed `.rs` files. The
 script catches the mechanical cases, so spend your attention on what it cannot see.
 
 ## What to look for

@@ -1,8 +1,0 @@
-{
-  "name": "jitter-rust",
-  "description": "Jitter Rust style, working rules and the comment-bloat check",
-  "version": "0.1.0",
-  "author": {
-    "name": "Jitter"
-  }
-}

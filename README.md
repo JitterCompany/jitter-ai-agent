@@ -15,19 +15,19 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/comment_lint.py` | Comment-bloat check for Rust, standalone or as an edit hook |
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
 | `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json` |
-| `claude/plugins/` | Claude Code delivery: the hooks, skills and the review agent |
+| `hooks/`, `skills/`, `agents/` | Claude Code delivery: the session hooks, the skills and the review agent |
 
 `rules/` and `tools/` need nothing but a text editor and python3. The plugin only delivers them. If you use another agent, point its instruction file at `rules/core.md`.
 
 ## Use it in a repo
 
-Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. Everyone who opens the repo is prompted to install the marketplace and the plugin. Add `"jitter-hw@jitter": true` in a hardware repo.
+Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. Everyone who opens the repo is prompted to install the marketplace and the plugin. The hardware rules load by themselves in a repo that has KiCad files, so there is nothing extra to enable there.
 
 Personal install, without touching a repo:
 
 ```sh
 /plugin marketplace add JitterCompany/jitter-agent
-/plugin install jitter-rust@jitter
+/plugin install jitter@jitter
 ```
 
 Update after someone lands a change:

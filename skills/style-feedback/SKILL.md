@@ -22,4 +22,4 @@ Use this when a correction is general. Something that is only true for this mach
 
 ## Finding the clone
 
-The rules that are loaded in this session live under `${CLAUDE_PLUGIN_ROOT}/../../..`, which is the plugin cache when the plugin came from the marketplace. That copy is not the place to edit. Ask the user where their `jitter-agent` working clone is, or clone it fresh, make the change there, then `/plugin marketplace update jitter` once the change is merged.
+The rules loaded in this session live under `${CLAUDE_PLUGIN_ROOT}`, which is the plugin cache when the plugin came from the marketplace. Do not edit that copy, it is overwritten on update. Ask the user where their `jitter-agent` working clone is, or clone it fresh, make the change there, then `/plugin marketplace update jitter` once it is merged.

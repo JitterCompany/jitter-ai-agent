@@ -8,6 +8,6 @@
     }
   },
   "enabledPlugins": {
-    "jitter-rust@jitter": true
+    "jitter@jitter": true
   }
 }
