@@ -120,6 +120,14 @@ def main():
             "new_string": "pub const LIMIT: usize = 8;\n",
         })
         ok &= check(
+            "--hook stays quiet when an edit only adds code under an existing block",
+            hook({
+                "file_path": str(tmp / "bloat.rs"),
+                "new_string": "    for i in 0..v.len() {\n        if v[i] == 42 { return i as i32; }\n    }\n",
+            }).returncode == 0,
+            "an edit below someone else's comment block must not reopen it",
+        )
+        ok &= check(
             "--hook stays quiet about comments this edit did not write (R5)",
             touched_elsewhere.returncode == 0,
             touched_elsewhere.stderr,

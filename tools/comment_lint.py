@@ -258,17 +258,24 @@ def strip_strings(line):
     return "".join(out)
 
 
-def in_edit(lines, lineno, message, touched):
-    """Did this edit write the line the finding sits on?
+COMMENTISH = re.compile(r"^\s*(//|/\*|\*)")
 
-    A run or block finding points at its first line, so a few lines of slack covers the case
-    where the edit added the tail of an existing comment block.
+
+def in_edit(lines, lineno, message, touched):
+    """Did this edit write the comment the finding is about?
+
+    A run or block finding points at its first line, so walk the run itself. Only comment
+    lines count: editing the code under someone else's comment block is not writing it (R5).
     """
-    span = 12 if message.startswith(("R3", "R12", "R17")) else 1
-    for offset in range(span):
-        index = lineno - 1 + offset
-        if 0 <= index < len(lines) and lines[index].strip() in touched:
+    index = lineno - 1
+    if not (0 <= index < len(lines)):
+        return False
+    if not message.startswith(("R3", "R12", "R17")):
+        return lines[index].strip() in touched
+    while index < len(lines) and COMMENTISH.match(lines[index]):
+        if lines[index].strip() in touched:
             return True
+        index += 1
     return False
 
 
