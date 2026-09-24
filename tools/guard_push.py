@@ -24,6 +24,7 @@ PUBLISHING = [
 ESCAPE = re.compile(r"\bJITTER_PUSH_OK=1\b")
 # A dry run publishes nothing.
 HARMLESS = re.compile(r"--dry-run\b")
+QUOTED = re.compile("'[^']*'" + r'|"[^"]*"')
 
 
 def main():
@@ -36,8 +37,11 @@ def main():
     if ESCAPE.search(command) or HARMLESS.search(command):
         return 0
 
+    # `grep "git push" docs/` mentions a push, it does not do one.
+    runnable = QUOTED.sub(" ", command)
+
     for pattern, name in PUBLISHING:
-        if pattern.search(command):
+        if pattern.search(runnable):
             sys.stderr.write(
                 "W2: `{}` needs the user's approval for this specific push, and nothing in "
                 "this session shows it was given.\n"

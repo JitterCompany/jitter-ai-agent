@@ -247,6 +247,12 @@ def guard_cases(ok):
 
     local = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git commit -m 'x' && git status"}})
     ok &= check("guard_push ignores local git work", local[0] == 0, local[1])
+
+    mention = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": 'grep -rn "git push" docs/'}})
+    ok &= check("guard_push ignores a quoted mention of a push", mention[0] == 0, mention[1])
+
+    dry = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git push --dry-run origin main"}})
+    ok &= check("guard_push allows a dry run", dry[0] == 0, dry[1])
     return ok
 
 
