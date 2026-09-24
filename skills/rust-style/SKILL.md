@@ -12,13 +12,10 @@ The short version is already in context from `rules/core.md`. Load the full file
 After a batch of edits, check your own work:
 
 ```sh
+JITTER_ROOT=$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root")
 python3 "$JITTER_ROOT/tools/comment_lint.py" path/to/changed.rs
 ```
 
-Fix what it reports before handing the work back. A one-off sweep including the comment ratio per function is `--ratio`, which is noisier by design.
+Fix what it reports before handing the work back. R3 findings (a long comment run) are advisory: keep the comment if it says why.
 
-`$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
-
-```sh
-find ~/.claude/plugins -maxdepth 7 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
-```
+The plugin writes its own path to `${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root` at session start, which is what the `JITTER_ROOT=` line above reads. The same path is printed in the session header.

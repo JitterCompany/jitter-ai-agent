@@ -52,11 +52,12 @@ The `adopt-rules` skill does the rest of the wiring: clippy lints, rustfmt, the 
 ## Run the checks by hand
 
 ```sh
-python3 tools/comment_lint.py $(git ls-files '*.rs')   # add --ratio for a noisier sweep
+python3 tools/comment_lint.py $(git ls-files '*.rs')
 python3 tools/path_leak_check.py --staged              # what the pre-commit hook runs
 python3 tools/kicad_project_check.py                   # in a KiCad repo, before committing
 python3 tools/prose_check.py --tracked                 # docs, READMEs, decision records
 python3 tools/layout_check.py                          # mod.rs files (R7)
+python3 tools/guard_push.py                            # reads a hook payload, see the file
 python3 tools/run_tests.py                             # after changing a threshold or a pattern
 ```
 
@@ -75,7 +76,9 @@ A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root,
 
 ## Two levels, on purpose
 
-The edit hook blocks only on rules that measured near 100% precision on real code: banners, step narration, change history, and a new `/* */` block. A long comment run (R3) is reported as advice and never interrupts, because on sensor-link every long run turned out to be a derivation, an errata note or a `// SAFETY:` justification worth keeping.
+The edit hook blocks only on rules that measured near 100% precision on real code: banners, step narration, change history, a new `/* */` block, and an em dash in prose. A long comment run (R3) only shows up in a sweep, because on sensor-link all 30 of them turned out to be derivations, errata notes or `// SAFETY:` justifications worth keeping.
+
+The push guard is a reminder, not a security control. An agent determined to get around it can, for example by writing a script. It exists to catch the agent that forgets.
 
 The one thing the agent is stopped from doing outright is pushing (W2), because that is the only rule here whose violation cannot be undone.
 

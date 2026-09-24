@@ -129,7 +129,9 @@ def comment_lint_cases(tmp, ok):
     long_run = tmp / "long.rs"
     long_run.write_text("".join("// reason {}\n".format(i) for i in range(8)) + "fn x() {}\n")
     result = hook("comment_lint.py", edit(long_run, "// reason 0\n// reason 1\n"))
-    ok &= check("a long run advises, it does not block", result[0] == 0 and "R3" in result[1], result[1])
+    ok &= check("a long run never interrupts an edit", result[0] == 0 and not result[1].strip(), result[1])
+    code, out = run("comment_lint.py", [str(long_run)])
+    ok &= check("a long run still shows up in a sweep", code == 1 and "R3" in out, out)
 
     split = tmp / "split.rs"
     split.write_text("// a\n// b\n// c\n// d\n\n// e\n// f\n// g\n// h\nfn x() {}\n")
@@ -147,6 +149,24 @@ def comment_lint_cases(tmp, ok):
     blocks.write_text("/* old\n   block */\nfn a() {}\n\n/* new\n   block */\nfn b() {}\n")
     result = hook("comment_lint.py", edit(blocks, "/* new\n   block */\nfn b() {}\n"))
     ok &= check("a new /* */ block is seen next to an old one", result[0] == 2, result[1])
+
+    charlit = tmp / "charlit.rs"
+    charlit.write_text("fn q() { let c = \'\"\'; }\n/* a real block\n   two\n   three */\n")
+    code, out = run("comment_lint.py", [str(charlit)])
+    ok &= check("a char literal holding a quote does not blind the file", code == 1 and "R17" in out, out)
+
+    template = tmp / "template.rs"
+    template.write_text('const T: &str = r#"\n// =====================\n// Step 1: preamble\n"#;\n')
+    code, out = run("comment_lint.py", [str(template)])
+    ok &= check("comment-looking text inside a string is data", code == 0, out)
+
+    datasheet = tmp / "datasheet.rs"
+    datasheet.write_text(
+        "// Step 4 of the datasheet power-up sequence, do not reorder.\npub fn up() {}\n\n"
+        "/// ----\n/// A markdown rule in a doc comment.\npub fn doc() {}\n"
+    )
+    code, out = run("comment_lint.py", [str(datasheet)])
+    ok &= check("a datasheet step and a markdown rule are not flagged", code == 0, out)
 
     trailing = tmp / "trailing.rs"
     trailing.write_text("let x = 1; /* =====================\n   banner\n   ===================== */\n")
@@ -179,6 +199,24 @@ def path_leak_cases(tmp, ok):
 
 
 def prose_cases(tmp, ok):
+    written = tmp / "written.md"
+    written.write_text("Clean line.\nA new line with an em dash \u2014 here.\n")
+    result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
+        "file_path": str(written), "new_string": "A new line with an em dash \u2014 here.\n"}})
+    ok &= check("prose hook blocks an em dash this edit wrote", result[0] == 2, result[1])
+
+    old = tmp / "old.md"
+    old.write_text("An old line with an em dash \u2014 here.\nNew line, clean.\n")
+    result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
+        "file_path": str(old), "new_string": "New line, clean.\n"}})
+    ok &= check("prose hook ignores a dash this edit did not write", result[0] == 0, result[1])
+
+    code = tmp / "code.rs"
+    code.write_text("// an em dash \u2014 in Rust is for the comment check, not this one\n")
+    result = hook("prose_check.py", {"tool_name": "Edit", "tool_input": {
+        "file_path": str(code), "new_string": "// an em dash \u2014 in Rust\n"}})
+    ok &= check("prose hook only judges text files", result[0] == 0, result[1])
+
     doc = tmp / "prose.md"
     doc.write_text("A sentence with an em dash — like this.\nA range of 10–100 MHz is fine.\n")
     code, out = run("prose_check.py", [str(doc)])
@@ -232,6 +270,11 @@ def repo_cases(tmp, ok):
     ok &= check("layout_check finds mod.rs (R7)", code == 1 and "thing" in out, out)
     code, out = run("layout_check.py", [str(repo / "src" / "other.rs")], cwd=repo)
     ok &= check("layout_check quiet on a normal module", code == 0, out)
+
+    (repo / ".jitter-lint-ignore").write_text("src/thing/*\n")
+    code, out = run("layout_check.py", [], cwd=repo)
+    ok &= check("layout_check honours .jitter-lint-ignore for a frozen tree", code == 0, out)
+    (repo / ".jitter-lint-ignore").unlink()
     return ok
 
 
@@ -253,6 +296,18 @@ def guard_cases(ok):
 
     dry = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": "git push --dry-run origin main"}})
     ok &= check("guard_push allows a dry run", dry[0] == 0, dry[1])
+
+    for command, want, name in [
+        ("git -C /repo push origin main", 2, "git -C is still a push"),
+        ("cargo publish --dry-run && git push origin main", 2, "a dry run elsewhere does not excuse a push"),
+        ('echo "JITTER_PUSH_OK=1"; git push origin main', 2, "a quoted mention of the escape is not approval"),
+        ("bash -c 'git push origin main'", 2, "a push inside bash -c is seen"),
+        ("grep -rn git push docs/", 0, "an unquoted grep is not a push"),
+        ('git commit -m "wip"   # then git push later', 0, "a trailing comment does not block the commit"),
+        ("cat <<'EOF' > README.md\nrun git push when ready\nEOF", 0, "a heredoc body is data"),
+    ]:
+        result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
+        ok &= check("guard_push: " + name, result[0] == want, result[1])
     return ok
 
 

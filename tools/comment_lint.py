@@ -10,7 +10,7 @@ Findings come at two levels, because precision differs per rule:
 - block: banners, step narration, change history, new /* */ blocks. Near 100% precision on
   real Jitter code, so the hook returns 2 and the agent fixes them in the same turn.
 - advise: a long run of // lines (R3). Real code is full of long why-comments that deserve
-  to stay, so this is reported as context, never as an interrupt.
+  to stay, so this only shows up in a sweep, never during an edit.
 
 A line that has a good reason to break a rule says so:  // jitter-lint: allow R3 <reason>
 
@@ -31,8 +31,14 @@ ALLOW_MARKER = re.compile(r"jitter-lint:\s*allow\s+([A-Z]\d+)")
 # A SAFETY justification is required by convention and by clippy, and it is never bloat.
 EXEMPT_RUN = re.compile(r"^\s*//[/!]?\s*(SAFETY|INVARIANT)\b", re.IGNORECASE)
 
-BANNER = re.compile(r"^\s*(//[/!]?|/?\*+/?)\s*[=*#~_-]{4,}\s*$|^\s*/{5,}\s*$")
-STEP_NARRATION = re.compile(r"^\s*//[/!]?\s*step\s*\d+\b", re.IGNORECASE)
+# Doc comments are markdown, where --- is a horizontal rule, so banners are only // and /* */.
+BANNER = re.compile(r"^\s*(//(?![/!])|/?\*+/?)\s*[=*#~_-]{4,}\s*$|^\s*/{5,}\s*$")
+STEP_NARRATION = re.compile(r"^\s*//\s*step\s*\d+\s*[:.)-]", re.IGNORECASE)
+# "Step 4 of the datasheet power-up sequence" is a cross-reference, not narration.
+STEP_REFERENCE = re.compile(
+    r"\b(datasheet|data sheet|reference manual|errata|app note|application note|spec|"
+    r"sequence in|section)\b", re.IGNORECASE
+)
 CHANGE_HISTORY = re.compile(
     r"\b(used to be|used to have|used to use|we used to|this used to|it used to|"
     r"changed from|renamed from|now uses .* instead|instead of the old|replaced the old)\b",
@@ -41,6 +47,7 @@ CHANGE_HISTORY = re.compile(
 LINE_COMMENT = re.compile(r"^\s*//(?![/!])")
 DOC_COMMENT = re.compile(r"^\s*///(?!/)")
 RAW_STRING = re.compile(r'r(#*)"')
+CHAR_LITERAL = re.compile(r"'(\\\\.|[^\\\\'])'")
 
 BLOCK = "block"
 ADVISE = "advise"
@@ -53,8 +60,8 @@ def scan(path):
     except OSError as exc:
         return [(1, 1, "IO", BLOCK, "could not read: {}".format(exc))]
 
-    blocks = block_regions(lines)
-    findings = scan_runs(lines) + scan_blocks(blocks) + scan_patterns(lines, blocks)
+    blocks, string_lines = lex(lines)
+    findings = scan_runs(lines) + scan_blocks(blocks) + scan_patterns(lines, blocks, string_lines)
     allowed = allow_markers(lines)
     return sorted(f for f in findings if not suppressed(f, allowed))
 
@@ -78,19 +85,24 @@ def suppressed(finding, allowed):
     )
 
 
-def block_regions(lines):
-    """Spans covered by /* */ comments, found with a small lexer.
+def lex(lines):
+    """Walk the file once and report (block comment spans, lines covered by a string).
 
-    Per-line scanning is not enough: a string can span lines (a raw string, or a regular one
-    continued with a backslash), and `Accept: */*` inside one used to look like a comment.
+    Per-line scanning is not enough: strings span lines (raw strings, and regular ones
+    continued with a backslash), a `*/` inside one used to look like a comment, and a char
+    literal holding a quote used to swallow the rest of the file.
     """
     text = "\n".join(lines)
     regions = []
+    string_lines = set()
     line = 0
     depth = 0
     start_line = 0
     i = 0
     size = len(text)
+
+    def mark(first, last):
+        string_lines.update(range(first, last + 1))
 
     while i < size:
         ch = text[i]
@@ -131,11 +143,22 @@ def block_regions(lines):
             terminator = '"' + raw.group(1)
             closing = text.find(terminator, raw.end())
             closing = size if closing == -1 else closing + len(terminator)
+            first = line
             line += text.count("\n", i, closing)
+            mark(first, line)
             i = closing
             continue
 
+        if ch == "'":
+            literal = CHAR_LITERAL.match(text, i)
+            if literal:
+                i = literal.end()
+            else:
+                i += 1  # a lifetime, such as 'a
+            continue
+
         if ch == '"':
+            first = line
             i += 1
             while i < size:
                 if text[i] == "\\":
@@ -148,13 +171,14 @@ def block_regions(lines):
                 if text[i] == "\n":
                     line += 1
                 i += 1
+            mark(first, line)
             continue
 
         i += 1
 
     if depth:
         regions.append((start_line, len(lines) - 1))
-    return regions
+    return regions, string_lines
 
 
 def scan_blocks(blocks):
@@ -216,16 +240,18 @@ def scan_runs(lines):
     return findings
 
 
-def scan_patterns(lines, blocks):
+def scan_patterns(lines, blocks, string_lines=frozenset()):
     inside = {i for start, end in blocks for i in range(start, end + 1)}
     findings = []
     for i, raw in enumerate(lines, start=1):
+        if i - 1 in string_lines and i - 1 not in inside:
+            continue  # text inside a string literal is data, not a comment
         line = as_comment(raw) if i - 1 in inside else raw
         if BANNER.match(raw) or (i - 1 in inside and BANNER.match(line)):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: banner comment. Delete it, the item name is the heading.")
             )
-        elif STEP_NARRATION.match(line):
+        elif STEP_NARRATION.match(line) and not STEP_REFERENCE.search(line):
             findings.append(
                 (i, i, "R2", BLOCK, "R2: step narration. The code already shows the order.")
             )
@@ -341,25 +367,15 @@ def main(argv):
     if blocking:
         sys.stderr.write(
             "Comment check on the lines this edit wrote:\n"
-            + "\n".join(blocking + advisory)
+            + "\n".join(blocking)
             + "\nFix these here. Leave comments you did not write alone (R5). If a rule is "
             "wrong for this spot, put `// jitter-lint: allow <rule> <reason>` in the comment "
             "it refers to.\n"
         )
         return 2
-
-    if advisory:
-        json.dump(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "PostToolUse",
-                    "additionalContext": "Comment check, advisory:\n"
-                    + "\n".join(advisory)
-                    + "\nKeep them if they say why. No reply needed.",
-                }
-            },
-            sys.stdout,
-        )
+    # Advisory findings are not sent to the agent mid-edit. Measured on sensor-link, 30 of 30
+    # long comment runs were worth keeping, so the interruption would only cost tokens. They
+    # still show up in a sweep, where a human is reading.
     return 0
 
 

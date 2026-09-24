@@ -5,6 +5,7 @@ description: Run the Jitter checks on this repo (comments, leaked paths, KiCad e
 Run the checks that apply to this repo, from the plugin root:
 
 ```sh
+JITTER_ROOT=$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root")
 python3 "$JITTER_ROOT/tools/comment_lint.py" $(git ls-files '*.rs')
 python3 "$JITTER_ROOT/tools/path_leak_check.py" $(git ls-files)
 python3 "$JITTER_ROOT/tools/kicad_project_check.py"
@@ -22,8 +23,4 @@ Then report, briefly:
 
 Do not fix anything yet unless $ARGUMENTS says to. If it does, fix and show the diff.
 
-`$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
-
-```sh
-find ~/.claude/plugins -maxdepth 7 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
-```
+The plugin writes its own path to `${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root` at session start, which is what the `JITTER_ROOT=` line above reads. The same path is printed in the session header.

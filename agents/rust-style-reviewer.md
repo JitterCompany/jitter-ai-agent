@@ -40,8 +40,4 @@ path/to/file.rs:LINE  <rule>
 
 Then one line: how many findings, and whether the diff is fine to commit as is. No praise, no summary of what the diff does. Report nothing rather than padding the list. Skip anything the diff did not touch, unless it is directly adjacent and wrong.
 
-`$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
-
-```sh
-find ~/.claude/plugins -maxdepth 7 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
-```
+The plugin writes its own path to `${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root` at session start, which is what the `JITTER_ROOT=` line above reads. The same path is printed in the session header.
