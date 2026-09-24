@@ -29,6 +29,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/guard_push.py\"; rc=$?; [ $rc -eq 2 ] && exit 2; fi; exit 0"
+          }
+        ]
+      }
     ]
   }
 }

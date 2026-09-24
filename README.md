@@ -16,6 +16,8 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
 | `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
+| `tools/layout_check.py` | R7, the `mod.rs` files |
+| `tools/guard_push.py` | Enforces W2: the agent cannot push or open a PR without approval |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json`, pre-commit hook |
 | `hooks/`, `skills/`, `agents/`, `commands/` | Claude Code delivery: session hooks, skills, the review agent, `/jitter-check` |
@@ -54,6 +56,7 @@ python3 tools/comment_lint.py $(git ls-files '*.rs')   # add --ratio for a noisi
 python3 tools/path_leak_check.py --staged              # what the pre-commit hook runs
 python3 tools/kicad_project_check.py                   # in a KiCad repo, before committing
 python3 tools/prose_check.py --tracked                 # docs, READMEs, decision records
+python3 tools/layout_check.py                          # mod.rs files (R7)
 python3 tools/run_tests.py                             # after changing a threshold or a pattern
 ```
 
@@ -61,7 +64,20 @@ In a session, `/jitter-check` runs the applicable ones and sorts the hits from t
 
 Everything runs on Linux and macOS with a stock python3, exits 0 when clean, and prints `file:line: rule: problem`.
 
-A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line. A single line that must carry an example path opts out with a `path-leak-check: allow` comment.
+## When a check is wrong
+
+Two escape hatches, both deliberate and both visible in the diff:
+
+- `// jitter-lint: allow R3 <reason>` anywhere inside the comment it refers to.
+- `path-leak-check: allow` on a line that must carry an example path.
+
+A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line.
+
+## Two levels, on purpose
+
+The edit hook blocks only on rules that measured near 100% precision on real code: banners, step narration, change history, and a new `/* */` block. A long comment run (R3) is reported as advice and never interrupts, because on sensor-link every long run turned out to be a derivation, an errata note or a `// SAFETY:` justification worth keeping.
+
+The one thing the agent is stopped from doing outright is pushing (W2), because that is the only rule here whose violation cannot be undone.
 
 ## Change a rule
 

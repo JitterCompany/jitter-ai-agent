@@ -40,5 +40,5 @@ If the repo vendors third-party or generated Rust, add a `.jitter-lint-ignore` a
 `$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
 
 ```sh
-find ~/.claude/plugins -maxdepth 5 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
+find ~/.claude/plugins -maxdepth 7 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
 ```

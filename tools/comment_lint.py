@@ -5,7 +5,16 @@ Standalone:   python3 comment_lint.py src/foo.rs src/bar.rs
 Whole tree:   python3 comment_lint.py $(git ls-files '*.rs')
 As a hook:    python3 comment_lint.py --hook   (reads the Claude Code hook JSON on stdin)
 
-Exit codes: 0 clean, 1 findings (standalone), 2 findings (--hook, so the agent sees them).
+Findings come at two levels, because precision differs per rule:
+
+- block: banners, step narration, change history, new /* */ blocks. Near 100% precision on
+  real Jitter code, so the hook returns 2 and the agent fixes them in the same turn.
+- advise: a long run of // lines (R3). Real code is full of long why-comments that deserve
+  to stay, so this is reported as context, never as an interrupt.
+
+A line that has a good reason to break a rule says so:  // jitter-lint: allow R3 <reason>
+
+Exit codes: 0 clean or advisory only, 1 findings (standalone), 2 blocking findings (--hook).
 Runs on Linux and macOS with a stock python3, no dependencies.
 """
 
@@ -15,24 +24,15 @@ import re
 import sys
 from pathlib import Path
 
-# Tune these against a real repo. Keep false positives near zero.
-MAX_COMMENT_RUN = 4  # consecutive // lines
-MAX_DOC_RUN = 12  # consecutive /// lines on a private item
-MAX_COMMENT_RATIO = 0.4  # inline // lines / code lines inside one fn, needs --ratio
-MIN_FN_LINES_FOR_RATIO = 12  # ignore short fns, the ratio is noise there
-
-# The ratio check is off by default: it fires on data tables that carry one short why-comment
-# per row, which is exactly the commenting we want. Enable it with --ratio for a one-off sweep.
+MAX_COMMENT_RUN = 4  # consecutive // lines before R3 says something
 IGNORE_FILE = ".jitter-lint-ignore"  # optional, one glob per line, for vendored trees
-# A line that has a good reason to break a rule says so, and says why.
+
 ALLOW_MARKER = re.compile(r"jitter-lint:\s*allow\s+([A-Z]\d+)")
+# A SAFETY justification is required by convention and by clippy, and it is never bloat.
+EXEMPT_RUN = re.compile(r"^\s*//[/!]?\s*(SAFETY|INVARIANT)\b", re.IGNORECASE)
 
 BANNER = re.compile(r"^\s*(//[/!]?|/?\*+/?)\s*[=*#~_-]{4,}\s*$|^\s*/{5,}\s*$")
-BLOCK_OPEN = re.compile(r"/\*")
-BLOCK_CLOSE = re.compile(r"\*/")
-# Only real narration. A numbered list of cases or invariants is fine.
 STEP_NARRATION = re.compile(r"^\s*//[/!]?\s*step\s*\d+\b", re.IGNORECASE)
-# Only phrasings that describe the code's past, not ordinary prose containing "used to".
 CHANGE_HISTORY = re.compile(
     r"\b(used to be|used to have|used to use|we used to|this used to|it used to|"
     r"changed from|renamed from|now uses .* instead|instead of the old|replaced the old)\b",
@@ -40,27 +40,22 @@ CHANGE_HISTORY = re.compile(
 )
 LINE_COMMENT = re.compile(r"^\s*//(?![/!])")
 DOC_COMMENT = re.compile(r"^\s*///(?!/)")
-MODULE_DOC = re.compile(r"^\s*//!")
-ATTRIBUTE = re.compile(r"^\s*(#\[|#!\[)")
-PUB_ITEM = re.compile(r"^\s*(pub(\s*\([^)]*\))?\s+)")
-FN_START = re.compile(r"^(\s*)(pub(\s*\([^)]*\))?\s+)?(async\s+|const\s+|unsafe\s+|extern\s+\S+\s+)*fn\s")
+RAW_STRING = re.compile(r'r(#*)"')
+
+BLOCK = "block"
+ADVISE = "advise"
 
 
-def scan(path, ratio=False):
-    """Return a list of (line_number, message)."""
+def scan(path):
+    """Findings as (start_line, end_line, rule, severity, message)."""
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as exc:
-        return [(1, "could not read: {}".format(exc))]
+        return [(1, 1, "IO", BLOCK, "could not read: {}".format(exc))]
 
     blocks = block_regions(lines)
-    findings = []
+    findings = scan_runs(lines) + scan_blocks(blocks) + scan_patterns(lines, blocks)
     allowed = allow_markers(lines)
-    findings += scan_runs(lines)
-    findings += scan_blocks(lines, blocks)
-    findings += scan_patterns(lines, blocks)
-    if ratio:
-        findings += scan_fn_ratio(lines)
     return sorted(f for f in findings if not suppressed(f, allowed))
 
 
@@ -75,49 +70,105 @@ def allow_markers(lines):
 
 
 def suppressed(finding, allowed):
-    """A marker covers the line it sits on and the 2 lines after it."""
-    lineno, message = finding
-    rule = message.split(":", 1)[0]
-    for index, allowed_rule in allowed.items():
-        if allowed_rule == rule and 0 <= index - (lineno - 1) <= 2:
-            return True
-    return False
+    """A marker anywhere inside the span the finding covers, or on the line above it."""
+    start, end, rule = finding[0], finding[1], finding[2]
+    return any(
+        allowed_rule == rule and start - 2 <= index <= end - 1
+        for index, allowed_rule in allowed.items()
+    )
 
 
 def block_regions(lines):
-    """Line indices covered by /* */ comments, as a list of (start, end) inclusive pairs.
+    """Spans covered by /* */ comments, found with a small lexer.
 
-    C-style blocks are how banner headers and step narration come back in after a rewrite,
-    and the // checks never see them.
+    Per-line scanning is not enough: a string can span lines (a raw string, or a regular one
+    continued with a backslash), and `Accept: */*` inside one used to look like a comment.
     """
+    text = "\n".join(lines)
     regions = []
-    start = None
-    for i, line in enumerate(lines):
-        # Only a comment that starts its own line counts. Anything else is usually a string,
-        # such as an HTTP header `Accept: */*` in the middle of a raw literal.
-        if start is None and BLOCK_OPEN.match(line.lstrip()):
-            start = i
-        if start is not None and BLOCK_CLOSE.search(line, 1 if start == i else 0):
-            regions.append((start, i))
-            start = None
-    if start is not None:
-        regions.append((start, len(lines) - 1))
+    line = 0
+    depth = 0
+    start_line = 0
+    i = 0
+    size = len(text)
+
+    while i < size:
+        ch = text[i]
+        if ch == "\n":
+            line += 1
+            i += 1
+            continue
+
+        if depth:
+            if text.startswith("/*", i):
+                depth += 1
+                i += 2
+                continue
+            if text.startswith("*/", i):
+                depth -= 1
+                i += 2
+                if depth == 0:
+                    regions.append((start_line, line))
+                continue
+            i += 1
+            continue
+
+        if text.startswith("//", i):
+            newline = text.find("\n", i)
+            if newline == -1:
+                break
+            i = newline
+            continue
+
+        if text.startswith("/*", i):
+            depth = 1
+            start_line = line
+            i += 2
+            continue
+
+        raw = RAW_STRING.match(text, i)
+        if raw:
+            terminator = '"' + raw.group(1)
+            closing = text.find(terminator, raw.end())
+            closing = size if closing == -1 else closing + len(terminator)
+            line += text.count("\n", i, closing)
+            i = closing
+            continue
+
+        if ch == '"':
+            i += 1
+            while i < size:
+                if text[i] == "\\":
+                    line += text.count("\n", i, i + 2)
+                    i += 2
+                    continue
+                if text[i] == '"':
+                    i += 1
+                    break
+                if text[i] == "\n":
+                    line += 1
+                i += 1
+            continue
+
+        i += 1
+
+    if depth:
+        regions.append((start_line, len(lines) - 1))
     return regions
 
 
-def scan_blocks(lines, blocks):
-    """R17: Rust comments are // and ///, not /* */."""
-    if not blocks:
-        return []
-    lines_covered = sum(end - start + 1 for start, end in blocks)
+def scan_blocks(blocks):
+    """R17, one finding per block so the hook can tell a new block from an old one."""
     return [
         (
-            blocks[0][0] + 1,
-            "R17: {} /* */ comment block(s), {} lines. Rust comments are // and ///, and a "
-            "C-style block is where banners and step narration come back.".format(
-                len(blocks), lines_covered
-            ),
+            start + 1,
+            end + 1,
+            "R17",
+            BLOCK,
+            "R17: /* */ comment block of {} line(s). Rust comments are // and ///, and a "
+            "C-style block is where banners and step narration come back.".format(end - start + 1),
         )
+        for start, end in blocks
     ]
 
 
@@ -127,156 +178,62 @@ def as_comment(line):
 
 
 def scan_runs(lines):
-    """Consecutive // blocks that are too long, and oversized /// on private items."""
+    """R3: a long run of // lines. A blank line does not reset the run, and a SAFETY or
+    INVARIANT justification is exempt because it is required elsewhere."""
     findings = []
-    start = None
-    kind = None
+    start = last = None
+    exempt = False
 
-    def flush(end):
-        if start is None:
+    def flush():
+        if start is None or exempt:
             return
-        length = end - start
-        if kind == "//" and length > MAX_COMMENT_RUN:
+        length = sum(1 for i in range(start, last + 1) if LINE_COMMENT.match(lines[i]))
+        if length > MAX_COMMENT_RUN:
             findings.append(
                 (
                     start + 1,
-                    "R3: {} consecutive // lines (max {}). Say why, not what, or move the "
-                    "explanation to docs/decisions/ (R4).".format(length, MAX_COMMENT_RUN),
+                    last + 1,
+                    "R3",
+                    ADVISE,
+                    "R3: {} comment lines in one run (over {}). Check they say why rather than "
+                    "what, and keep them if they do.".format(length, MAX_COMMENT_RUN),
                 )
             )
-        if kind == "doc" and length > MAX_DOC_RUN:
-            item = next_item(lines, end)
-            if not PUB_ITEM.match(item):
-                findings.append(
-                    (
-                        start + 1,
-                        "R12: {} doc-comment lines on a private item (max {}). Keep the summary, "
-                        "drop the rest.".format(length, MAX_DOC_RUN),
-                    )
-                )
 
     for i, line in enumerate(lines):
-        if MODULE_DOC.match(line):
-            this = None  # module docs may be as long as they need to be
-        elif DOC_COMMENT.match(line):
-            this = "doc"
-        elif LINE_COMMENT.match(line):
-            this = "//"
+        if LINE_COMMENT.match(line):
+            if start is None:
+                start = i
+                exempt = bool(EXEMPT_RUN.match(line))
+            last = i
+        elif line.strip() == "" and start is not None:
+            continue
         else:
-            this = None
-        if this != kind:
-            flush(i)
-            kind = this
-            start = i if this else None
-    flush(len(lines))
+            flush()
+            start = last = None
+            exempt = False
+    flush()
     return findings
 
 
-def next_item(lines, index):
-    """First real line at or after index, skipping attributes and blanks."""
-    for line in lines[index:]:
-        if line.strip() and not ATTRIBUTE.match(line):
-            return line
-    return ""
-
-
-def scan_patterns(lines, blocks=()):
+def scan_patterns(lines, blocks):
     inside = {i for start, end in blocks for i in range(start, end + 1)}
     findings = []
     for i, raw in enumerate(lines, start=1):
         line = as_comment(raw) if i - 1 in inside else raw
         if BANNER.match(raw) or (i - 1 in inside and BANNER.match(line)):
-            findings.append((i, "R2: banner comment. Delete it, the item name is the heading."))
-        elif STEP_NARRATION.match(line):
-            findings.append((i, "R2: step narration. The code already shows the order."))
-        elif (LINE_COMMENT.match(line) or DOC_COMMENT.match(line)) and CHANGE_HISTORY.search(line):
-            findings.append((i, "R2: change history in a comment. Git records that."))
-    return findings
-
-
-def scan_fn_ratio(lines):
-    """Comment-to-code ratio per fn body, using brace depth from the fn signature."""
-    findings = []
-    i = 0
-    while i < len(lines):
-        if not FN_START.match(lines[i]):
-            i += 1
-            continue
-        depth = 0
-        opened = False
-        comments = 0
-        code = 0
-        start = i
-        j = i
-        while j < len(lines):
-            line = lines[j]
-            stripped = strip_strings(line)
-            # Doc comments are wanted, only inline // count against the ratio.
-            if LINE_COMMENT.match(line):
-                comments += 1
-            elif line.strip() and not DOC_COMMENT.match(line) and not MODULE_DOC.match(line):
-                code += 1
-            depth += stripped.count("{") - stripped.count("}")
-            if "{" in stripped:
-                opened = True
-            if opened and depth <= 0:
-                break
-            j += 1
-        total = j - start + 1
-        if total >= MIN_FN_LINES_FOR_RATIO and code and comments / code > MAX_COMMENT_RATIO:
             findings.append(
-                (
-                    start + 1,
-                    "R2: {} comment lines to {} code lines in this fn. Cut the ones that restate "
-                    "the code.".format(comments, code),
-                )
+                (i, i, "R2", BLOCK, "R2: banner comment. Delete it, the item name is the heading.")
             )
-        i = max(j, i) + 1
+        elif STEP_NARRATION.match(line):
+            findings.append(
+                (i, i, "R2", BLOCK, "R2: step narration. The code already shows the order.")
+            )
+        elif (LINE_COMMENT.match(line) or DOC_COMMENT.match(line)) and CHANGE_HISTORY.search(line):
+            findings.append(
+                (i, i, "R2", BLOCK, "R2: change history in a comment. Git records that.")
+            )
     return findings
-
-
-def strip_strings(line):
-    """Drop string and char literals, and the trailing // comment, so what is left is code."""
-    out = []
-    quote = None
-    k = 0
-    while k < len(line):
-        ch = line[k]
-        if quote:
-            if ch == "\\":
-                k += 2
-                continue
-            if ch == quote:
-                quote = None
-        elif ch in "\"'":
-            quote = ch
-        elif ch == "/" and k + 1 < len(line) and line[k + 1] == "/":
-            break
-        else:
-            out.append(ch)
-        k += 1
-    return "".join(out)
-
-
-COMMENTISH = re.compile(r"^\s*(//|/\*|\*)")
-
-
-def in_edit(lines, lineno, message, touched):
-    """Did this edit write the comment the finding is about?
-
-    A run or block finding points at its first line, so walk the run itself. Only comment
-    lines count: editing the code under someone else's comment block is not writing it (R5).
-    """
-    index = lineno - 1
-    if not (0 <= index < len(lines)):
-        return False
-    if not message.startswith(("R3", "R12", "R17")):
-        return lines[index].strip() in touched
-    while index < len(lines) and COMMENTISH.match(lines[index]):
-        if lines[index].strip() in touched:
-            return True
-        index += 1
-    return False
 
 
 def ignore_globs(start):
@@ -285,11 +242,11 @@ def ignore_globs(start):
     for folder in [here, *here.parents]:
         candidate = folder / IGNORE_FILE
         if candidate.is_file():
-            globs = []
-            for line in candidate.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    globs.append(line)
+            globs = [
+                line.strip()
+                for line in candidate.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
             return folder, globs
         if (folder / ".git").exists():
             break
@@ -307,27 +264,51 @@ def ignored(path):
     return any(fnmatch.fnmatch(rel, g) for g in globs)
 
 
-def written_lines(tool_input):
-    """The comment lines this edit actually wrote, as a set of stripped texts.
+def written_spans(path, tool_input):
+    """Line ranges this edit wrote, located by position.
 
-    Findings are filtered against it in hook mode, so an edit is judged on what it added,
-    never on comments someone else wrote elsewhere in the file (R5).
+    Matching on comment text alone blames an identical comment elsewhere in the file, and
+    duplicated comment lines are common, so find where the written text actually sits.
     """
-    texts = set()
     chunks = [tool_input.get("new_string"), tool_input.get("content")]
     for edit in tool_input.get("edits") or []:
         chunks.append(edit.get("new_string"))
+    chunks = [c for c in chunks if isinstance(c, str) and c.strip()]
+    if not chunks:
+        return []
+
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    spans = []
     for chunk in chunks:
-        if isinstance(chunk, str):
-            texts.update(line.strip() for line in chunk.splitlines() if line.strip())
-    return texts
+        found = False
+        offset = text.find(chunk)
+        while offset != -1:
+            first = text.count("\n", 0, offset) + 1
+            spans.append((first, first + chunk.rstrip("\n").count("\n")))
+            found = True
+            offset = text.find(chunk, offset + 1)
+        if not found:
+            # Whitespace differed, fall back to the written lines themselves.
+            wanted = {line.strip() for line in chunk.splitlines() if line.strip()}
+            for number, line in enumerate(text.splitlines(), start=1):
+                if line.strip() in wanted:
+                    spans.append((number, number))
+    return spans
+
+
+def in_spans(finding, spans):
+    start, end = finding[0], finding[1]
+    return any(not (end < low or start > high) for low, high in spans)
 
 
 def main(argv):
     hook_mode = "--hook" in argv
-    ratio = "--ratio" in argv
     paths = [a for a in argv if not a.startswith("-")]
-    touched = None
+    spans = {}
 
     if hook_mode:
         try:
@@ -337,36 +318,49 @@ def main(argv):
         tool_input = payload.get("tool_input") or {}
         path = tool_input.get("file_path") or tool_input.get("notebook_path")
         paths = [path] if path else []
-        touched = written_lines(tool_input)
+        if path:
+            spans[path] = written_spans(path, tool_input)
 
     paths = [p for p in paths if p and p.endswith(".rs") and not ignored(p)]
     if not paths:
         return 0
 
-    report = []
+    blocking, advisory = [], []
     for path in paths:
-        try:
-            lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            lines = []
-        for line, message in scan(path, ratio=ratio):
-            if touched is not None and not in_edit(lines, line, message, touched):
+        for finding in scan(path):
+            if hook_mode and not in_spans(finding, spans.get(path, [])):
                 continue
-            report.append("{}:{}: {}".format(path, line, message))
+            line = "{}:{}: {}".format(path, finding[0], finding[4])
+            (blocking if finding[3] == BLOCK else advisory).append(line)
 
-    if not report:
-        return 0
+    if not hook_mode:
+        for line in blocking + advisory:
+            sys.stdout.write(line + "\n")
+        return 1 if blocking or advisory else 0
 
-    if hook_mode:
+    if blocking:
         sys.stderr.write(
-            "Comment check on what this edit wrote, Jitter rules R2 to R5, R12 and R17:\n"
-            + "\n".join(report)
-            + "\nFix these in the lines you just wrote. Leave the rest of the file alone (R5).\n"
+            "Comment check on the lines this edit wrote:\n"
+            + "\n".join(blocking + advisory)
+            + "\nFix these here. Leave comments you did not write alone (R5). If a rule is "
+            "wrong for this spot, put `// jitter-lint: allow <rule> <reason>` in the comment "
+            "it refers to.\n"
         )
         return 2
 
-    sys.stdout.write("\n".join(report) + "\n")
-    return 1
+    if advisory:
+        json.dump(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PostToolUse",
+                    "additionalContext": "Comment check, advisory:\n"
+                    + "\n".join(advisory)
+                    + "\nKeep them if they say why. No reply needed.",
+                }
+            },
+            sys.stdout,
+        )
+    return 0
 
 
 if __name__ == "__main__":

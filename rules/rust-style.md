@@ -9,11 +9,11 @@ Home of the `R` rules. `core.md` carries the short form of R1 to R11, the rest l
 The recurring failure is comment bloat: blocks that restate the code, narrate the steps, or record what the code used to do. They rot on the first edit and push the actual code off the screen.
 
 - **R2** A comment answers why, or states a contract the types cannot. Never what. No banners, no step narration, no change history, git has that.
-- **R3** At most 4 consecutive `//` lines in what you write. When editing existing code, do not grow the comments around it. Comments you did not write stay (R5), and the edit hook only judges the lines your edit added.
+- **R3** Keep a run of `//` lines short, around 4. This is advisory: the check reports a longer run but never blocks, because a long run is often a derivation or an errata note that has to stay. A `// SAFETY:` or `// INVARIANT:` justification is exempt. Do not grow the comments around code you edit, and leave comments you did not write (R5).
 - **R4** A longer explanation belongs in a decision record under `docs/decisions/`, with the code pointing at it.
 - **R5** Keep the comments and the `debug!` / `info!` / `warn!` / `error!` / `trace!` statements that were already there, unless the code they describe is gone.
 - **R17** Comments are `//` and `///`. No `/* */` blocks: they are where banner headers and step narration come back, and rustfmt leaves them alone. `comment_lint.py` flags them.
-- **R12** Doc comments on public items: one summary line, then only the non-obvious parts (units, panics, timing, ownership).
+- **R12** Doc comments on public items: one summary line, then only the non-obvious parts (units, panics, timing, ownership). No check: judging a doc comment by length flagged a trait method and a `macro_rules!` and nothing else.
 
 Bad:
 
@@ -87,7 +87,7 @@ fn find_slot(&self, id: u8) -> Option<usize> {
 
 ## 4. Layout and naming
 
-- **R7** A module with submodules is `mything.rs` beside `mything/`. Never `mything/mod.rs`. Import types with `use`, fully-qualified paths in signatures make them unreadable.
+- **R7** A module with submodules is `mything.rs` beside `mything/`. Never `mything/mod.rs`. `tools/layout_check.py` checks it. Import types with `use`, fully-qualified paths in signatures make them unreadable.
 - **R13** Keep specifics out of generic or shared code. If a shared file enumerates cases per device, per board or per customer, move the list to the module that owns it and let the shared code ask.
 
 ## 5. Interfaces

@@ -28,3 +28,18 @@ jobs:
 
       - name: The docs follow the prose rules
         run: python3 tools/prose_check.py --tracked
+
+      - name: The hooks are wired to tools that exist
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib, re, sys
+          wired = json.loads(pathlib.Path("hooks/hooks.json").read_text())
+          missing = []
+          for event in wired["hooks"].values():
+              for matcher in event:
+                  for entry in matcher["hooks"]:
+                      for tool in re.findall(r"tools/([a-z_]+\.py)", entry["command"]):
+                          if not pathlib.Path("tools", tool).is_file():
+                              missing.append(tool)
+          sys.exit("hooks reference missing tools: " + ", ".join(missing) if missing else 0)
+          EOF

@@ -80,12 +80,18 @@ def scan_text(text, label):
 
 def scan_staged(path):
     """The staged content, which is what the commit will contain."""
+    if Path(path).suffix.lower() in SKIP_SUFFIXES:
+        return []
     done = subprocess.run(
-        ["git", "show", ":{}".format(path)], capture_output=True, text=True, check=False
+        ["git", "show", ":{}".format(path)], capture_output=True, check=False
     )
     if done.returncode != 0:
         return []
-    return scan_text(done.stdout, path)
+    try:
+        text = done.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return []  # binary or another encoding, nothing to read
+    return scan_text(text, path)
 
 
 def scan_file(path):

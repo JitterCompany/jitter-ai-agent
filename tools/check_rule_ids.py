@@ -45,33 +45,39 @@ def ids_in(path, problems=None):
 
 
 def main():
-    duplicates = []
-    problems = 0
+    problems = []
     defined = {}
+    files = sorted(set(HOME.values()))
 
-    for prefix, path in sorted(set(HOME.items()), key=lambda kv: kv[1]):
-        for key, lineno in ids_in(path, duplicates).items():
-            if key[0] != prefix and HOME.get(key[0]) == path:
-                continue
-            if key[0] == prefix:
+    found = {path: ids_in(path, problems) for path in files}
+
+    for path in files:
+        owned = {prefix for prefix, home in HOME.items() if home == path}
+        for key, lineno in found[path].items():
+            prefix = key[0]
+            if prefix in owned:
                 if key in defined:
                     print("{}:{}: {}{} already defined in {}".format(path, lineno, *key, defined[key]))
-                    problems += 1
+                    problems.append(key)
                 defined[key] = path
+            elif HOME.get(prefix) is None:
+                print("{}:{}: unknown prefix {}".format(path, lineno, prefix))
+                problems.append(key)
+            elif path != "rules/core.md":
+                # Only the digest repeats a rule owned by another file.
+                print(
+                    "{}:{}: {}{} belongs in {}".format(path, lineno, prefix, key[1], HOME[prefix])
+                )
+                problems.append(key)
 
-    # core.md repeats always-on rules owned by another file. Those must resolve.
-    for key, lineno in ids_in("rules/core.md").items():
+    for key, lineno in found["rules/core.md"].items():
         home = HOME.get(key[0])
-        if home is None:
-            print("rules/core.md:{}: unknown prefix {}".format(lineno, key[0]))
-            problems += 1
-        elif home != "rules/core.md" and key not in defined:
+        if home and home != "rules/core.md" and key not in defined:
             print("rules/core.md:{}: {}{} is not defined in {}".format(lineno, key[0], key[1], home))
-            problems += 1
+            problems.append(key)
 
-    problems += len(duplicates)
     if problems:
-        print("\n{} problem(s). Ids are handed out in the home file, see rules/core.md.".format(problems))
+        print("\n{} problem(s). Ids are handed out in the home file, see rules/core.md.".format(len(problems)))
         return 1
 
     counts = {}

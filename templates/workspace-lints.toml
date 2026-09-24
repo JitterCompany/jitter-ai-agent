@@ -19,14 +19,15 @@ single_match_else = "warn"
 
 # Types and API shape
 from_over_into = "warn"
-needless_pass_by_value = "warn"
 fn_params_excessive_bools = "warn"
 struct_excessive_bools = "warn"
 
 # Readability
 semicolon_if_nothing_returned = "warn"
-doc_markdown = "warn"
-too_many_lines = "warn"
+
+# Deliberately not here: doc_markdown, needless_pass_by_value and too_many_lines. Measured on
+# sensor-link they produce hundreds of warnings on day one, which buries the handful that
+# encode R1 and gets the whole block deleted.
 
 [workspace.lints.rust]
 unused_qualifications = "warn"
