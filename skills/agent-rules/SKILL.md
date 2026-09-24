@@ -1,5 +1,5 @@
 ---
-name: style-feedback
+name: agent-rules
 description: Add, change or override a shared Jitter rule in the jitter-ai-agent repo, so every colleague's next session gets it. Use when the user says "remember this across all projects", "new company-wide rule", "add this to the house rules", when they correct the house style or conventions, or when they want an exception to a rule that just shaped your behaviour.
 ---
 

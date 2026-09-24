@@ -1,0 +1,30 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Manifests parse
+        run: |
+          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
+          python3 -m json.tool .claude-plugin/plugin.json > /dev/null
+          python3 -m json.tool hooks/hooks.json > /dev/null
+          python3 -m json.tool templates/claude-settings.json > /dev/null
+
+      - name: Checks do what they claim
+        run: python3 tools/run_tests.py
+
+      - name: The repo obeys its own rules
+        run: python3 tools/path_leak_check.py $(git ls-files)
+
+      - name: Every rule id is unique
+        run: python3 tools/check_rule_ids.py
+
+      - name: The docs follow the prose rules
+        run: python3 tools/prose_check.py --tracked

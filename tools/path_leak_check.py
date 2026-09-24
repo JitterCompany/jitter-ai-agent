@@ -3,7 +3,7 @@
 
 Files:        python3 path_leak_check.py report.md netlist.net
 Staged diff:  python3 path_leak_check.py --staged
-Pre-commit:   ln -s ../../jitter-agent/tools/path_leak_check.py .git/hooks/pre-commit-check
+Pre-commit:   see templates/pre-commit in jitter-ai-agent
 
 Catches /home/<user>, /Users/<user>, C:\\Users\\<user>, personal email addresses, an ssh
 private key header and obvious tokens. Exit 0 clean, 1 findings.
@@ -96,7 +96,7 @@ def main(argv):
         return 0
 
     sys.stderr.write(
-        "Local paths or personal data found (jitter-agent rules/core.md):\n"
+        "C3: local paths or personal data found, these must not leave the machine:\n"
         + "\n".join(findings)
         + "\nReplace them with ${KIPRJMOD}, $HOME, a relative path or a config value.\n"
     )

@@ -2,7 +2,7 @@
 
 Canonical source: `jitter-ai-agent/rules/core.md`. Full Rust guide: `rules/rust-style.md` (skill `rust-style`). Writing: `rules/prose.md`. Hardware: `rules/hardware.md`, loaded on its own in KiCad repos.
 
-Each rule has an id. Cite it when it shapes what you do, and use it when a rule is challenged or overridden. See Meta at the bottom.
+Ids: each rules file owns a prefix and numbers its own rules. `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` and `C` and `M` this file. This digest repeats the short form of the always-on ones, so R1 here and R1 there are the same rule. Numbers are never reused.
 
 ## Rust
 
@@ -39,10 +39,10 @@ Each rule has an id. Cite it when it shapes what you do, and use it when a rule 
 - **C2** Placeholder names must be obviously fake. No plausible-looking brands.
 - **C3** Nothing that leaves the machine carries local paths or personal data. No `/home/<user>`, `/Users/<user>`, usernames, personal email addresses, machine names or API tokens in committed files, generated reports, netlists or docs. Use `${KIPRJMOD}`, `$HOME`, a relative path or a config value. This is privacy and it also stops "works on my machine" artifacts. `tools/path_leak_check.py` checks it.
 - **C4** Hardware documentation (modules, antennas, RF) lives in the hardware repo, not the firmware repo.
-- **C5** Writing style, everywhere including comments, docs and commit messages: no em dashes, short sentences, no formal register, bullets or a table over a paragraph.
+- **P1-P4** Writing style, everywhere including comments, docs and commit messages: no em dashes, short sentences, no formal register, bullets or a table over a paragraph. Full set in `prose.md`.
 
 ## Meta
 
-- **M1** These rules come from the private repo `JitterCompany/jitter-ai-agent`. When the user says "remember this across all projects", "new company-wide rule", "add this to the rules" or similar, use the `style-feedback` skill: it writes the rule, branches in a clone of that repo and asks before pushing. Do not just store it in personal memory, that reaches nobody else.
-- **M2** When something you did surprises the user and a rule caused it, name the rule id and quote it in one line. Then offer the four levels: skip it this once, an exception for this project (its CLAUDE.md), a personal exception (their `~/.claude/CLAUDE.md`), or change it for everybody (a PR on `jitter-ai-agent`). Apply what they pick, right away.
+- **M1** These rules come from the private repo `JitterCompany/jitter-ai-agent`. When the user says "remember this across all projects", "new company-wide rule", "add this to the rules" or similar, use the `agent-rules` skill: it writes the rule, branches in a clone of that repo and asks before pushing. Personal memory alone reaches nobody else.
+- **M2** Do not narrate rule ids. Cite one only when challenged, or when a rule made you do something other than what the user asked for. Then name it, quote it in one line, and offer the four levels: skip it this once, an exception for this project (its CLAUDE.md), a personal exception (their `~/.claude/CLAUDE.md`), or change it for everybody (a PR on `jitter-ai-agent`). Apply the choice right away.
 - **M3** A rule that only holds for one project or one machine does not belong in this file. Project facts go in that repo's CLAUDE.md, personal preferences in personal memory.

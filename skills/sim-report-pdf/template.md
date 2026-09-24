@@ -11,7 +11,7 @@ date: "YYYY‑MM‑DD"
 
 **Target:** ≤ **<criterion>** in the <range>.
 
-> *Note:* <caveat — a non-physical artefact, or why an operating point is
+> *Note:* <caveat, a non-physical artefact, or why an operating point is
 > unrealistic. Renders amber; keep limitations visible.>
 
 | # | Case | <param> | <param> | <verdict column> |

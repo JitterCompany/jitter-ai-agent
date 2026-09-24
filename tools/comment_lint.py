@@ -71,8 +71,8 @@ def scan_runs(lines):
             findings.append(
                 (
                     start + 1,
-                    "{} consecutive // lines (max {}). Say why, not what, or move the "
-                    "explanation to docs/decisions/.".format(length, MAX_COMMENT_RUN),
+                    "R3: {} consecutive // lines (max {}). Say why, not what, or move the "
+                    "explanation to docs/decisions/ (R4).".format(length, MAX_COMMENT_RUN),
                 )
             )
         if kind == "doc" and length > MAX_DOC_RUN:
@@ -81,7 +81,7 @@ def scan_runs(lines):
                 findings.append(
                     (
                         start + 1,
-                        "{} doc-comment lines on a private item (max {}). Keep the summary, "
+                        "R12: {} doc-comment lines on a private item (max {}). Keep the summary, "
                         "drop the rest.".format(length, MAX_DOC_RUN),
                     )
                 )
@@ -115,11 +115,11 @@ def scan_patterns(lines):
     findings = []
     for i, line in enumerate(lines, start=1):
         if BANNER.match(line):
-            findings.append((i, "banner comment. Delete it, the item name is the heading."))
+            findings.append((i, "R2: banner comment. Delete it, the item name is the heading."))
         elif STEP_NARRATION.match(line):
-            findings.append((i, "step narration. The code already shows the order."))
+            findings.append((i, "R2: step narration. The code already shows the order."))
         elif (LINE_COMMENT.match(line) or DOC_COMMENT.match(line)) and CHANGE_HISTORY.search(line):
-            findings.append((i, "change history in a comment. Git records that."))
+            findings.append((i, "R2: change history in a comment. Git records that."))
     return findings
 
 
@@ -156,7 +156,7 @@ def scan_fn_ratio(lines):
             findings.append(
                 (
                     start + 1,
-                    "{} comment lines to {} code lines in this fn. Cut the ones that restate "
+                    "R2: {} comment lines to {} code lines in this fn. Cut the ones that restate "
                     "the code.".format(comments, code),
                 )
             )
@@ -243,7 +243,7 @@ def main(argv):
 
     if hook_mode:
         sys.stderr.write(
-            "Comment-bloat check (jitter-agent rules/core.md):\n"
+            "Comment check, Jitter rules R2 to R5 and R12:\n"
             + "\n".join(report)
             + "\nTrim these now, in this edit.\n"
         )

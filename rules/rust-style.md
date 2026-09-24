@@ -1,18 +1,18 @@
 # Jitter Rust style
 
-The short version lives in `core.md` and is loaded in every session. This file has the reasoning and the examples. Baseline is the [rust-analyzer style guide](https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/style.md); this file only covers what we hit in practice.
+Home of the `R` rules. `core.md` carries the short form of R1 to R11, the rest live here only.
+
+- **R10** Baseline: the [rust-analyzer style guide](https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/style.md). This file covers what we hit in practice on top of it.
 
 ## 1. Comments
 
-The recurring failure is comment bloat: blocks that restate the code, narrate the steps, or record what the code used to do. They rot on the first edit and they push the actual code off the screen.
+The recurring failure is comment bloat: blocks that restate the code, narrate the steps, or record what the code used to do. They rot on the first edit and push the actual code off the screen.
 
-- A comment answers why, or states a contract the types cannot. Never what.
-- At most 4 consecutive `//` lines. A longer explanation belongs in a decision record under `docs/decisions/`, with the code pointing at it.
-- No banner or divider lines.
-- No step narration.
-- No change history. Git has it.
-- Doc comments on public items: one summary line, then only the non-obvious parts (units, panics, timing, ownership).
-- When editing existing code, trim the surrounding comments rather than adding to them. Keep comments and log statements that were already there unless the code they describe is gone.
+- **R2** A comment answers why, or states a contract the types cannot. Never what. No banners, no step narration, no change history, git has that.
+- **R3** At most 4 consecutive `//` lines. When editing existing code, trim the comments around it rather than adding to them.
+- **R4** A longer explanation belongs in a decision record under `docs/decisions/`, with the code pointing at it.
+- **R5** Keep the comments and the `debug!` / `info!` / `warn!` / `error!` / `trace!` statements that were already there, unless the code they describe is gone.
+- **R12** Doc comments on public items: one summary line, then only the non-obvious parts (units, panics, timing, ownership).
 
 Bad:
 
@@ -45,6 +45,8 @@ pub async fn power_up(&mut self) -> Result<(), Error> {
 ```
 
 ## 2. Rust, not C in Rust syntax
+
+- **R1** Write Rust, not C in Rust syntax:
 
 | C-ism | Write instead |
 |---|---|
@@ -80,26 +82,25 @@ fn find_slot(&self, id: u8) -> Option<usize> {
 
 ## 3. Macros
 
-Do not introduce a macro to remove repetition. A macro hides the types, breaks rust-analyzer's navigation and makes the diff unreadable. Use a function, a trait, a const array, or a small enum with a `match`. Existing macros in a codebase stay, this rule is about adding new ones.
-
-Also avoid `matches!()` where `if let`, let-else or `match` reads better. `matches!` is fine inside a filter closure, less so as the condition of a long `if`.
+- **R6** Do not add a macro to remove repetition. It hides the types, breaks rust-analyzer's navigation and makes the diff unreadable. Use a function, a trait, a const array, or a small enum with a `match`. Macros already in a codebase stay, this is about adding new ones. Also avoid `matches!()` where `if let`, let-else or `match` reads better. Inside a filter closure it is fine.
 
 ## 4. Layout and naming
 
-- A module with submodules is `mything.rs` beside `mything/`. Never `mything/mod.rs`.
-- Import types with `use`. Fully-qualified paths in signatures make them unreadable.
-- Keep specifics out of generic or shared code. If a shared file has to enumerate cases per device, per board or per customer, move the list to the one module that owns it and let the shared code ask.
+- **R7** A module with submodules is `mything.rs` beside `mything/`. Never `mything/mod.rs`. Import types with `use`, fully-qualified paths in signatures make them unreadable.
+- **R13** Keep specifics out of generic or shared code. If a shared file enumerates cases per device, per board or per customer, move the list to the module that owns it and let the shared code ask.
 
 ## 5. Interfaces
 
-- Prefer an enum plus an optional free-text note over a single free-text field that a tool has to parse. Parsing prose is how config formats rot.
-- Derive scope from a semantic property present in the data, never from a hardcoded list of names. A name list goes stale the moment someone adds a part.
-- Extend a CLI by adding an optional argument that selects the new path. Do not replace the flag set wholesale, scripts depend on it.
-- Before building new infrastructure, look at what established crates do. Do not propose a thin wrapper over one of them as if it were the design.
-- A raw `.send().await` on a channel is a smell. Somebody has to handle the full or closed case, so wrap it in the type that owns that policy.
+- **R8** Prefer an enum plus an optional free-text note over a single free-text field a tool has to parse. Parsing prose is how config formats rot. Derive scope from a semantic property in the data, never from a hardcoded list of names, which goes stale the moment someone adds a part.
+- **R9** Extend a CLI by adding an optional argument that selects the new path. Do not replace the flag set, scripts depend on it. Before building new infrastructure, look at what established crates do, and do not present a thin wrapper over one as the design.
+- **R14** A raw `.send().await` on a channel is a smell. Someone has to handle the full or closed case, so wrap it in the type that owns that policy.
 
-## 6. Firmware specifics
+## 6. Firmware
 
-- `no_std`: no `Box`, no `alloc`. `heapless::Vec` and friends instead.
-- Drivers and peripheral handles are not `Copy` or `Clone`. Exclusive access is the point.
-- Keep primitives consumer-agnostic. Compose the sequence at the call site, not inside the primitive.
+- **R11** `no_std`: no `Box`, no `alloc`. `heapless::Vec` and friends instead.
+- **R15** Drivers and peripheral handles are not `Copy` or `Clone`. Exclusive access is the point.
+- **R16** Keep primitives consumer-agnostic. Compose the sequence at the call site, not inside the primitive.
+
+## Not in core.md
+
+R12 to R16 are not in the session digest. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.

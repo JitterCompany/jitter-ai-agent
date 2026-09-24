@@ -108,10 +108,10 @@ def main(argv):
         return 0
 
     sys.stderr.write(
-        "KiCad dropped project settings (jitter-ai-agent rules/hardware.md):\n"
+        "H5: KiCad dropped project settings when it rewrote the file:\n"
         + "\n".join(findings)
-        + "\nRestore with `git checkout -- <file>` or re-apply the exclusions in KiCad "
-        "before committing.\n"
+        + "\nH7: restore with `git checkout -- <file>` or re-apply the exclusions in KiCad "
+        "before committing anything else.\n"
     )
     return 1
 

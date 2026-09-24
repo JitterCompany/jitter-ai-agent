@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && cat \"${CLAUDE_PLUGIN_ROOT}/rules/hardware.md\" || true"
+          },
+          {
+            "type": "command",
+            "command": "command -v python3 >/dev/null 2>&1 && find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && python3 \"${CLAUDE_PLUGIN_ROOT}/tools/kicad_project_check.py\" 2>&1 || true"
           }
         ]
       }
@@ -21,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py\" --hook"
+            "command": "if command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py\" --hook; fi"
           }
         ]
       }

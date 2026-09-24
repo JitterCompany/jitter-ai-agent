@@ -1,0 +1,25 @@
+#!/bin/sh
+# Jitter pre-commit checks. Install with:
+#   ln -sf ../../path/to/jitter-ai-agent/templates/pre-commit .git/hooks/pre-commit
+# or copy it and set RULES to the clone.
+#
+# Skip once with `git commit --no-verify`, which is the right escape hatch when a
+# check is wrong. Tell someone so the check gets fixed (M1).
+
+RULES="${JITTER_RULES:-$HOME/dev/jitter-ai-agent}"
+status=0
+
+if [ ! -d "$RULES/tools" ]; then
+    echo "pre-commit: jitter-ai-agent not found at $RULES, set JITTER_RULES" >&2
+    exit 0
+fi
+
+# C3: no local paths, personal email addresses, keys or tokens in a commit.
+python3 "$RULES/tools/path_leak_check.py" --staged || status=1
+
+# H5: KiCad rewrites .kicad_pro on open and drops reviewed ERC/DRC exclusions.
+if git diff --cached --name-only | grep -q '\.kicad_pro$'; then
+    python3 "$RULES/tools/kicad_project_check.py" || status=1
+fi
+
+exit $status

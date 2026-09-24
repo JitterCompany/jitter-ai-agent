@@ -9,20 +9,28 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | Path | What |
 |---|---|
 | `rules/core.md` | The short rule set, injected at every session start and after every compaction |
-| `rules/rust-style.md` | Full Rust guide with bad-to-good examples |
-| `rules/prose.md` | Writing style, applies to comments, docs and commit messages too |
-| `rules/hardware.md` | KiCad, PCB, lab |
+| `rules/rust-style.md` | Full Rust guide with bad-to-good examples, home of the `R` ids |
+| `rules/prose.md` | Writing style, applies to comments, docs and commit messages too, `P` ids |
+| `rules/hardware.md` | KiCad, PCB, lab, `H` ids. Loads by itself in a repo with KiCad files |
 | `tools/comment_lint.py` | Comment-bloat check for Rust, standalone or as an edit hook |
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
 | `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |
-| `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json` |
-| `hooks/`, `skills/`, `agents/` | Claude Code delivery: the session hooks, the skills and the review agent |
+| `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
+| `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
+| `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json`, pre-commit hook |
+| `hooks/`, `skills/`, `agents/`, `commands/` | Claude Code delivery: session hooks, skills, the review agent, `/jitter-check` |
 
 `rules/` and `tools/` need nothing but a text editor and python3. The plugin only delivers them. If you use another agent, point its instruction file at `rules/core.md`.
 
+## Rule ids
+
+Each rules file owns a prefix and hands out its own numbers: `R` rust-style, `P` prose, `H` hardware, `W` working and `C` company and `M` meta in core.md. `core.md` repeats the short form of the always-on rules under the same id, so R1 in the digest and R1 in the guide are one rule. Numbers are never reused, and `tools/check_rule_ids.py` fails CI if an id is duplicated or dangling.
+
+Ids exist so a rule can be cited when it is challenged, and named when someone wants an exception. Claude does not narrate them (M2).
+
 ## Use it in a repo
 
-Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. Everyone who opens the repo is prompted to install the marketplace and the plugin. The hardware rules load by themselves in a repo that has KiCad files, so there is nothing extra to enable there.
+Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. Everyone who opens the repo is prompted to install the marketplace and the plugin.
 
 Personal install, without touching a repo:
 
@@ -37,28 +45,32 @@ Update after someone lands a change:
 /plugin marketplace update jitter
 ```
 
-The `setup-repo` skill does the rest of the wiring (clippy lints, rustfmt, pre-commit check).
+The `adopt-rules` skill does the rest of the wiring: clippy lints, rustfmt, the pre-commit hook.
 
 ## Run the checks by hand
 
 ```sh
-python3 tools/comment_lint.py $(git ls-files '*.rs')     # add --ratio for a noisier sweep
-python3 tools/path_leak_check.py --staged                 # good as a pre-commit hook
-python3 tools/kicad_project_check.py                      # in a KiCad repo, before committing
+python3 tools/comment_lint.py $(git ls-files '*.rs')   # add --ratio for a noisier sweep
+python3 tools/path_leak_check.py --staged              # what the pre-commit hook runs
+python3 tools/kicad_project_check.py                   # in a KiCad repo, before committing
+python3 tools/prose_check.py --tracked                 # docs, READMEs, decision records
+python3 tools/run_tests.py                             # after changing a threshold or a pattern
 ```
 
-Both work on Linux and macOS with a stock python3, exit 0 when clean, and print `file:line: problem`.
+In a session, `/jitter-check` runs the applicable ones and sorts the hits from the false positives.
+
+Everything runs on Linux and macOS with a stock python3, exits 0 when clean, and prints `file:line: rule: problem`.
 
 A repo with vendored or generated Rust gets a `.jitter-lint-ignore` at its root, one glob per line.
 
 ## Change a rule
 
-1. Branch, edit the file under `rules/`, one rule per PR.
-2. `rules/core.md` is loaded in every session, so it stays short. Adding a line there usually means removing one.
-3. Prefer a check over a sentence. A clippy lint or a line in `comment_lint.py` lands in the agent's context exactly when it matters, and it never gets summarized away.
+1. Branch, edit the file under `rules/`, one rule per PR. Give it the next free number in that file.
+2. `rules/core.md` is loaded in every session, so it stays short. Adding a line there usually means removing one, or leaving the rule in its home file only.
+3. Prefer a check over a sentence. A clippy lint or a pattern in `comment_lint.py` lands in the agent's context exactly when it matters, and never gets summarized away. Tune it against a real repo first, `run_tests.py` covers the regressions.
 4. Say why in the PR. A rule without a reason gets argued about again in six months.
 
-During a session you can ask Claude to do this for you: the `style-feedback` skill drafts the rule and the branch, and asks before pushing.
+In a session, just say "new company-wide rule" or "remember this across all projects". The `agent-rules` skill writes it, branches, and asks before pushing. The same skill handles the other direction: when a rule caused something unwanted, it records the exception at the level you pick (once, this project, you, everybody).
 
 ## Scope
 

@@ -2,14 +2,16 @@
 
 Applies to everything: chat replies, code comments, doc comments, READMEs, decision records, commit messages, proposals, customer reports.
 
+Home of the `P` rules. `core.md` carries P1 to P4 in one line.
+
 ## Rules
 
-- No em dashes. Use a comma, a full stop, or brackets.
-- No long sentences stitched together with semicolons. Two short sentences beat one long one.
-- No formal or marketing register. Write the way you would explain it to a colleague at the next desk.
-- Prefer a short bullet list or a small table over a paragraph that enumerates things.
-- Cut throat-clearing openers such as "It is worth noting that" or "In order to".
-- No filler summaries that repeat what was just said.
+- **P1** No em dashes. Use a comma, a full stop, or brackets.
+- **P2** No long sentences stitched together with semicolons. Two short sentences beat one long one.
+- **P3** No formal or marketing register. Write the way you would explain it to a colleague at the next desk.
+- **P4** Prefer a short bullet list or a small table over a paragraph that enumerates things.
+- **P5** Cut throat-clearing openers such as "It is worth noting that" or "In order to".
+- **P6** No filler summaries that repeat what was just said.
 
 We do not hide that we use AI. A `Co-Authored-By` trailer on a commit is fine. The point is that the text reads naturally, not that its origin is concealed.
 

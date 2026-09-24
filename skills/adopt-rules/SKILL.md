@@ -1,5 +1,5 @@
 ---
-name: setup-repo
+name: adopt-rules
 description: Wire a Jitter repo into the shared agent conventions - the plugin via .claude/settings.json, the clippy workspace lints, rustfmt, and the path-leak pre-commit check. Use when asked to set up the shared rules, the house lints or the agent conventions in a repo, or when a repo has none of them yet.
 ---
 

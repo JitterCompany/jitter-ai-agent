@@ -11,7 +11,7 @@ description: >-
 
 # Fix hardcoded paths in KiCad files
 
-KiCad writes absolute host paths into files — commonly the `Sim.Library`
+KiCad writes absolute host paths into files, commonly the `Sim.Library`
 property of spice models, but also worksheet and library references. These
 break on other machines and trip pre-commit hooks that blacklist host-specific
 strings (e.g. `/home/<user>`).
@@ -25,7 +25,7 @@ This skill's script is exactly such a fix script.
 ## Usage
 
 ```bash
-# Dry run — report what would change, exit 1 if fixes are needed (flag stage):
+# Dry run, report what would change, exit 1 if fixes are needed (flag stage):
 python3 ~/.claude/skills/fix-kicad-paths/fix_kicad_paths.py --check
 
 # Fix in place across the whole repo (run from anywhere inside it):
@@ -61,7 +61,7 @@ untouched and reported to stderr; the script exits non-zero so you notice.
   mode. This needs write permission on the *directory*, not the file, so it
   works in shared group-writable checkouts where files are owned by another
   user (e.g. `s:s` files in a group-`dev` dir). Side effect: the file's owner
-  becomes the running user — harmless in a shared-group setup, but worth
+  becomes the running user, harmless in a shared-group setup, but worth
   knowing.
 - **Symlinked checkouts.** Projects are often accessed via a symlink (e.g.
   `$HOME/dev/PROJECT` -> `/home/<user>/.../PROJECT`). The script canonicalizes
@@ -70,7 +70,7 @@ untouched and reported to stderr; the script exits non-zero so you notice.
   `../../../s/...` result or a spurious "could not resolve".
 - **Backup/history dirs** (`.history`, `backup`, `backups`) are skipped.
 - **New blacklist strings.** If pre-commit flags a string this script doesn't
-  handle, it's not necessarily a path — add it to the blacklist in the
+  handle, it's not necessarily a path, add it to the blacklist in the
   pre-commit script (`~/git/scripts/pre-commit`, `str_blacklist`) or
   extend this script if it's another hardcoded-path form.
 - KiCad accepts both `${KIPRJMOD}/../x` and bare `../x` for `Sim.Library`;

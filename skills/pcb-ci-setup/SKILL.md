@@ -1,6 +1,6 @@
 ---
 name: pcb-ci-setup
-description: Set up (or extend) the shared Jitter KiCad hardware CI in a repo — the JitterCompany/pcb_release submodule, the ci-hardware / ci-hardware-release workflows, per-board release.toml and pinmap.config.toml, and the measured skip=/todo= board list. Use when asked to "set up the hardware CI", "add the KiCad checks/gates", "add a board to CI", "make the pinmap gate run", or to cut a hw-v* manufacturing release.
+description: Set up (or extend) the shared Jitter KiCad hardware CI in a repo: the JitterCompany/pcb_release submodule, the ci-hardware / ci-hardware-release workflows, per-board release.toml and pinmap.config.toml, and the measured skip=/todo= board list. Use when asked to "set up the hardware CI", "add the KiCad checks/gates", "add a board to CI", "make the pinmap gate run", or to cut a hw-v* manufacturing release.
 ---
 
 # Jitter hardware CI (pcb_release)
@@ -11,7 +11,7 @@ two reusable GitHub workflows. A consumer repo states only its board list.
 
 Built first for **5101-btbenergy-zonneboiler**; also installed in 2607-telecom-displays,
 2507-vpinstruments-transmitter-electronics, 4108-frogwatch-hardware. Copy the newest of
-those as the reference — check its `.github/workflows/ci-hardware*.yml` and
+those as the reference, check its `.github/workflows/ci-hardware*.yml` and
 `hardware/tools/pcb.sh`.
 
 ## Install (≈5 steps)
@@ -23,15 +23,15 @@ hardware, drop the `hardware/` prefix everywhere (vpinstruments does).
 
        git submodule add https://github.com/JitterCompany/pcb_release.git hardware/tools/pcb_release
 
-2. **`hardware/tools/pcb.sh`** — local "would CI pass?" wrapper. Copy it verbatim from a
+2. **`hardware/tools/pcb.sh`**, local "would CI pass?" wrapper. Copy it verbatim from a
    sibling repo and only fix `WORKFLOW=` (path depth to `.github/workflows/ci-hardware.yml`)
    and the `s|^hardware/|../|` rebase. It parses the workflow's `project-dirs:` block and
    pipes it into the same `pcb-checks.sh` CI runs, so the two cannot disagree.
 
-3. **`.github/workflows/ci-hardware.yml`** — calls
+3. **`.github/workflows/ci-hardware.yml`**, calls
    `JitterCompany/pcb_release/.github/workflows/kicad-checks.yml@master` with
    `tools: hardware/tools/pcb_release` and `project-dirs: |`.
-   **`ci-hardware-release.yml`** — same `with:` block against `kicad-release.yml@master`,
+   **`ci-hardware-release.yml`**, same `with:` block against `kicad-release.yml@master`,
    triggered by `workflow_dispatch` + tags `hw-v*`. Name them `ci-hardware*.yml` when the
    repo's other workflows are `ci-*`; keep the `paths:` filter matching `**/ci-hardware.yml`.
 
@@ -39,18 +39,18 @@ hardware, drop the `hardware/` prefix everywhere (vpinstruments does).
    (finish, mask/silk colour, via treatment, stackup strictness, RoHS/UL94). Take the
    values from that project's previous `production/README-manufacturing.txt` rather than
    inventing them, and say in the file where they came from. A first run drops an
-   annotated `release.toml.example` beside every board that lacks one — **delete those
+   annotated `release.toml.example` beside every board that lacks one, **delete those
    templates afterwards**, they are noise in `git status`.
 
-5. **`pinmap.config.toml`** in each board that has an MCU: `ref = "U5"` (the MCU refdes —
+5. **`pinmap.config.toml`** in each board that has an MCU: `ref = "U5"` (the MCU refdes , 
    ask if not obvious), `out = "pinmap.toml"`, `ignore = []`, plus optional `[reserved]`
    and `[groups]` (section names in the generated map). **`[reserved]` is only for
-   PERIPHERALS the firmware owns internally** — `TIM5 = ""` for a monotonic, `TIM4 =
-   "ADC_SYNC"` to allow one net — so CI flags any pin whose active alternate lands on
+   PERIPHERALS the firmware owns internally**, `TIM5 = ""` for a monotonic, `TIM4 =
+   "ADC_SYNC"` to allow one net, so CI flags any pin whose active alternate lands on
    one. It is never a way to reserve a *pin*; that intent belongs in a net name plus a
    firmware constant. Misreading it has confused several people.
    Generate with `hardware/tools/pcb.sh pinmap <board>` and **commit the generated
-   `pinmap.toml`** — the gate diffs against it, so firmware sees any pin change in review.
+   `pinmap.toml`**, the gate diffs against it, so firmware sees any pin change in review.
    Boards with no MCU get `skip=pinmap`; without the config the gate *fails* rather than
    silently passing. (The older `kicad-pinmap` skill is the by-hand version of this.)
 
@@ -80,7 +80,7 @@ This is the normal case and the fastest route:
    `NO_COLOR=1 hardware/tools/pcb.sh > /tmp/all.log 2>&1` (a 16-board repo ≈ 10 min).
 3. Write each board's failures back as `todo=`, re-run, confirm exit 0.
    Now CI is green, nothing is silently unchecked, and every gap is visible as a warning.
-4. Write `hardware/CI-STATUS.md`: the gate matrix (✅ enforced/green, ⚠️ todo, — skip),
+4. Write `hardware/CI-STATUS.md`: the gate matrix (✅ enforced/green, ⚠️ todo,, skip),
    plus one row per board saying what it still owes, from the log. Copy the structure
    from 2607-telecom-displays or 4108-frogwatch-hardware.
 
@@ -99,10 +99,10 @@ Map stage names to gates when reading the log: `SCHEMA (dnp-lint)` belongs to **
   resolve it, so the part silently vanishes from the STEP. Fix is mechanical:
   `${JITTER}/model.step`. `no_model` findings are real parts (often test points) with no
   3D model at all.
-* **`${JITTER}` needs no `model-dirs:` entry** — CI sparse-fetches those models from
+* **`${JITTER}` needs no `model-dirs:` entry**, CI sparse-fetches those models from
   KicadComponents by itself. `model-dirs: NAME=path` is only for a repo's *own* 3D library
   (vpinstruments' `VP_3DMODEL_DIR`), and must be set on *both* workflows.
-* **Don't edit .kicad_sch/.kicad_pcb while KiCad has them open** (`~*.lck` present) — leave
+* **Don't edit .kicad_sch/.kicad_pcb while KiCad has them open** (`~*.lck` present), leave
   design fixes to the user and record them in CI-STATUS.md instead.
 * Wiring/cable drawings are not boards; leave them out of the list entirely.
 * Local runs need `kicad-cli` ≥ the board's KiCad version and Python 3. CI needs neither
