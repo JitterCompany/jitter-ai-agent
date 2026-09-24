@@ -1,0 +1,32 @@
+# Merge into the workspace Cargo.toml, then add `lints.workspace = true` to every member crate.
+# These target the C-isms listed in rules/rust-style.md, so the compiler says it instead of a
+# human repeating it in review. Start at warn, switch CI to -D warnings once a repo is clean.
+
+[workspace.lints.clippy]
+# Loops and copies
+needless_range_loop = "warn"
+explicit_iter_loop = "warn"
+explicit_counter_loop = "warn"
+manual_memcpy = "warn"
+needless_collect = "warn"
+
+# Control flow that wants an enum, a match or a let-else
+match_bool = "warn"
+bool_to_int_with_if = "warn"
+manual_let_else = "warn"
+redundant_else = "warn"
+single_match_else = "warn"
+
+# Types and API shape
+from_over_into = "warn"
+needless_pass_by_value = "warn"
+fn_params_excessive_bools = "warn"
+struct_excessive_bools = "warn"
+
+# Readability
+semicolon_if_nothing_returned = "warn"
+doc_markdown = "warn"
+too_many_lines = "warn"
+
+[workspace.lints.rust]
+unused_qualifications = "warn"

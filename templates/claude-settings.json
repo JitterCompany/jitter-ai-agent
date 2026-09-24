@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "jitter": {
+      "source": {
+        "source": "github",
+        "repo": "JitterCompany/jitter-agent"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "jitter-rust@jitter": true
+  }
+}

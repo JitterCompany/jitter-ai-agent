@@ -1,0 +1,2 @@
+# Needs nightly: cargo +nightly fmt --all
+imports_granularity = "Crate"
