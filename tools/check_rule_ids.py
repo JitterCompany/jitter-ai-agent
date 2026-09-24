@@ -25,7 +25,7 @@ HOME = {
 DEFINITION = re.compile(r"^- \*\*([A-Z])(\d+)(?:-[A-Z]?(\d+))?\*\*")
 
 
-def ids_in(path):
+def ids_in(path, problems=None):
     """Ids introduced by a bullet in this file, as {(prefix, number): line}."""
     found = {}
     text = (ROOT / path).read_text(encoding="utf-8")
@@ -38,16 +38,19 @@ def ids_in(path):
             key = (prefix, number)
             if key in found:
                 print("{}:{}: {}{} listed twice in one file".format(path, lineno, prefix, number))
+                if problems is not None:
+                    problems.append(key)
             found[key] = lineno
     return found
 
 
 def main():
+    duplicates = []
     problems = 0
     defined = {}
 
     for prefix, path in sorted(set(HOME.items()), key=lambda kv: kv[1]):
-        for key, lineno in ids_in(path).items():
+        for key, lineno in ids_in(path, duplicates).items():
             if key[0] != prefix and HOME.get(key[0]) == path:
                 continue
             if key[0] == prefix:
@@ -66,6 +69,7 @@ def main():
             print("rules/core.md:{}: {}{} is not defined in {}".format(lineno, key[0], key[1], home))
             problems += 1
 
+    problems += len(duplicates)
     if problems:
         print("\n{} problem(s). Ids are handed out in the home file, see rules/core.md.".format(problems))
         return 1

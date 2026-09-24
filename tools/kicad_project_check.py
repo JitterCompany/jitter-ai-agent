@@ -96,7 +96,11 @@ def compare(path, rev):
 def main(argv):
     rev = "HEAD"
     if "--rev" in argv:
-        rev = argv[argv.index("--rev") + 1]
+        index = argv.index("--rev") + 1
+        if index >= len(argv):
+            sys.stderr.write("--rev needs a revision, for example --rev origin/master\n")
+            return 2
+        rev = argv[index]
     paths = [a for a in argv if not a.startswith("-") and a != rev]
     paths = [p for p in paths if p.endswith(".kicad_pro")] or tracked_projects(rev)
 

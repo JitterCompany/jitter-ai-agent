@@ -22,4 +22,12 @@ if git diff --cached --name-only | grep -q '\.kicad_pro$'; then
     python3 "$RULES/tools/kicad_project_check.py" || status=1
 fi
 
+# W1: formatting. Warn only, because nightly may not be installed everywhere.
+if git diff --cached --name-only | grep -q '\.rs$'; then
+    if command -v cargo >/dev/null 2>&1; then
+        cargo +nightly fmt --all --check >/dev/null 2>&1 ||
+            echo "pre-commit: cargo +nightly fmt --all would change files (W1)" >&2
+    fi
+fi
+
 exit $status

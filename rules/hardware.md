@@ -4,10 +4,7 @@ Home of the `H` rules. Loaded automatically in a repo that contains KiCad files,
 
 ## Repos and submodules
 
-- **H1** Never commit or push from inside a project's submodule, `KicadComponents` included. Ask the user first, then work in that library's own source tree, on its own branch.
-- **H2** Public JitterCompany repos never name a customer or a project code (see C1).
-- **H3** Strip references to the source project from files and commit messages when moving a design between repos.
-- **H4** Documentation about modules, antennas and RF belongs in the hardware repo, not the firmware repo.
+Already in `core.md`, they apply here as written: W6 submodules (`KicadComponents` is the usual one), C1 no customer or project code in a public repo and no source-project references when moving a design, C4 hardware documentation belongs in the hardware repo. H1 to H4 were those same rules under a second id and are retired.
 
 ## KiCad rewrites files on open
 

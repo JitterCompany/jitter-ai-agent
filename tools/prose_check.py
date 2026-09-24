@@ -33,7 +33,10 @@ def scan(path):
         if in_code:
             continue
         if EM_DASH.search(line) or EN_DASH_PROSE.search(line):
-            findings.append("{}:{}: P1: em dash. Use a comma, a full stop or brackets.".format(path, lineno))
+            findings.append(
+                "{}:{}: P1: em or en dash in prose. Use a comma, a full stop or brackets. "
+                "A numeric range such as 10-100 MHz is fine.".format(path, lineno)
+            )
         if SEMICOLON_CHAIN.search(line):
             findings.append("{}:{}: P2: clauses chained with a semicolon. Two sentences read better.".format(path, lineno))
     return findings

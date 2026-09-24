@@ -37,27 +37,55 @@ PATTERNS = [
 ALLOW_MARKER = "path-leak-check: allow"
 
 # Addresses we publish on purpose.
-EMAIL_ALLOW = re.compile(r"@(jitter\.company|users\.noreply\.github\.com|noreply\.anthropic\.com|example\.(com|org))$")
+EMAIL_ALLOW = re.compile(
+    r"@(jitter\.company|users\.noreply\.github\.com|noreply\.anthropic\.com|example\.(com|org))$"
+    # Documentation placeholders: account@server.tld, you@example.test, user@host.invalid.
+    r"|@[A-Za-z0-9.-]+\.(tld|invalid|test|example|local)$"
+    r"|^(account|user|username|you|your|name|email|address|someone)@"
+)
+# `git@github.com:Org/repo.git` is a remote, not somebody's mailbox. Submodules carry it (H9).
+GIT_REMOTE = re.compile(r"\bgit@[A-Za-z0-9.-]+[:/]")
+# A PEM header is a leak when actual key material follows, and a string constant when a parser
+# looks for it. Base64 on the same or the next line is the difference.
+KEY_MATERIAL = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
 
 
-def interesting(name, match):
+def interesting(name, match, line="", following=""):
     if name == "email address":
+        if GIT_REMOTE.search(line):
+            return False
         return not EMAIL_ALLOW.search(match.group(0))
     if name.endswith("home path"):
         return match.group(1).lower() not in PLACEHOLDER
+    if name == "private key":
+        return bool(KEY_MATERIAL.search(line[match.end():]) or KEY_MATERIAL.search(following))
     return True
 
 
 def scan_text(text, label):
     findings = []
-    for lineno, line in enumerate(text.splitlines(), start=1):
+    lines = text.splitlines()
+    for lineno, line in enumerate(lines, start=1):
         if ALLOW_MARKER in line:
             continue
+        following = lines[lineno] if lineno < len(lines) else ""
         for name, pattern in PATTERNS:
             for match in pattern.finditer(line):
-                if interesting(name, match):
-                    findings.append("{}:{}: {}: {}".format(label, lineno, name, match.group(0)))
+                if interesting(name, match, line, following):
+                    finding = "{}:{}: {}: {}".format(label, lineno, name, match.group(0))
+                    if finding not in findings:  # one line can carry the same example twice
+                        findings.append(finding)
     return findings
+
+
+def scan_staged(path):
+    """The staged content, which is what the commit will contain."""
+    done = subprocess.run(
+        ["git", "show", ":{}".format(path)], capture_output=True, text=True, check=False
+    )
+    if done.returncode != 0:
+        return []
+    return scan_text(done.stdout, path)
 
 
 def scan_file(path):
@@ -89,7 +117,8 @@ def staged_files():
 
 
 def main(argv):
-    if "--staged" in argv:
+    staged = "--staged" in argv
+    if staged:
         targets = staged_files()
     else:
         targets = [a for a in argv if not a.startswith("-")]
@@ -98,7 +127,7 @@ def main(argv):
 
     findings = []
     for path in targets:
-        findings += scan_file(path)
+        findings += scan_staged(path) if staged else scan_file(path)
 
     if not findings:
         return 0

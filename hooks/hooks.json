@@ -2,11 +2,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\""
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\"; printf '\\nJITTER_ROOT=%s (the rules and the checks in tools/ live there, use this path when a skill asks for it)\\n' \"${CLAUDE_PLUGIN_ROOT}\""
           },
           {
             "type": "command",
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py\" --hook; fi"
+            "command": "if command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py\" --hook; rc=$?; [ $rc -eq 2 ] && exit 2; fi; exit 0"
           }
         ]
       }

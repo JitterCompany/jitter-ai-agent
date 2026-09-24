@@ -2,13 +2,13 @@
 
 Canonical source: `jitter-ai-agent/rules/core.md`. Full Rust guide: `rules/rust-style.md` (skill `rust-style`). Writing: `rules/prose.md`. Hardware: `rules/hardware.md`, loaded on its own in KiCad repos.
 
-Ids: each rules file owns a prefix and numbers its own rules. `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` and `C` and `M` this file. This digest repeats the short form of the always-on ones, so R1 here and R1 there are the same rule. Numbers are never reused.
+Ids: `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` `C` `M` here. This digest repeats the short form of a rule under its own id.
 
 ## Rust
 
 - **R1** Iterators and slices over index loops. Enums and `match` over flag ints and bools. `Option` / `Result` with `?` over sentinel values. Return values, not out-params.
 - **R2** Comments say why, or state a contract. They never restate the code. No banner lines, no "Step 1:" narration, no change history such as "now uses X instead of Y".
-- **R3** At most 4 consecutive `//` lines. When you change code, trim the comments around it instead of growing them.
+- **R3** At most 4 consecutive `//` lines in what you write. Do not grow the comments around code you touch, and leave comments you did not write alone (R5).
 - **R4** The why of a design lives in `docs/decisions/`, not inline.
 - **R5** When refactoring, keep existing comments and `debug!` / `info!` / `warn!` / `error!` / `trace!` statements.
 - **R6** No macros to reduce repetition. Avoid `matches!()` where `if let`, let-else or `match` reads better.
@@ -31,7 +31,7 @@ Ids: each rules file owns a prefix and numbers its own rules. `R` rust-style.md,
 - **W9** Running tools and scripts to find things out is fine, as long as they cannot touch production or the user's running setup. Show the command so it can be repeated by hand.
 - **W10** Prefer a script file over long inline bash. Avoid `rm -rf` with wildcards, prefer adding a folder over deleting one.
 - **W11** Keep replies terse. Do not echo a plan back.
-- **W12** A PR review judges substance. Format and compile checks are CI's job.
+- **W12** A PR review judges substance, including style and design. Leave formatting and compile errors to CI.
 
 ## Company
 

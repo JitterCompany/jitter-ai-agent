@@ -37,4 +37,4 @@ Apply the choice to the work in front of you straight away, do not only record i
 
 ## Finding the clone
 
-`${CLAUDE_PLUGIN_ROOT}` is the plugin cache when the plugin came from the marketplace, and it is overwritten on update. Never edit there. Ask the user where their `jitter-ai-agent` working clone is, or clone it fresh, edit there, and run `/plugin marketplace update jitter` once the change is merged.
+`$JITTER_ROOT` is the plugin cache when the plugin came from the marketplace, and it is overwritten on update. Never edit there. Ask the user where their `jitter-ai-agent` working clone is, or clone it fresh, edit there, and run `/plugin marketplace update jitter` once the change is merged.

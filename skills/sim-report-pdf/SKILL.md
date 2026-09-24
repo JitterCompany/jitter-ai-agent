@@ -18,7 +18,8 @@ repo), that is the reference example of the output.
 
 ## Toolchain
 
-`pandoc` + `weasyprint` (both at `/usr/bin`, WeasyPrint 54.1). **WeasyPrint is the
+`pandoc` and `weasyprint`, both on `PATH`. Check with `pandoc -v` and
+`weasyprint --version`, and install them if they are missing. **WeasyPrint is the
 required PDF engine**, the stylesheet uses `@page` and CSS that LaTeX engines
 ignore. Do not fall back to `--pdf-engine=pdflatex`; it silently drops the layout.
 
@@ -73,6 +74,8 @@ Name files after what they show, encoding the varied parameter:
 to bracket the band that meets the criterion, and refer to the markers in the
 prose (\"Markers ① / ② bracket the band below −40 dB\").
 
-For plots generated headlessly instead, `~/opt/ngspice -b` is the isolated
-ngspice, **never `apt install ngspice`**, it removes `libngspice-kicad` and
-breaks KiCad's built-in simulator.
+For plots generated headlessly instead, run the isolated ngspice build,
+**never `apt install ngspice`** (H17): it removes `libngspice-kicad` and breaks
+KiCad's built-in simulator. On a machine that has no isolated copy, unpack the
+`.deb` into a private tree and point `LD_LIBRARY_PATH`, `SPICE_LIB_DIR` and
+`SPICE_EXEC_DIR` at it.

@@ -5,7 +5,7 @@ description: Wire a Jitter repo into the shared agent conventions - the plugin v
 
 # Set a repo up for the shared conventions
 
-Templates live in `${CLAUDE_PLUGIN_ROOT}/templates/`. Read each one before copying, and merge rather than overwrite when the target file exists.
+Templates live in `$JITTER_ROOT/templates/`. Read each one before copying, and merge rather than overwrite when the target file exists.
 
 ## 1. Plugin, so colleagues get the rules automatically
 
@@ -36,3 +36,9 @@ If the repo vendors third-party or generated Rust, add a `.jitter-lint-ignore` a
 - `python3 tools/comment_lint.py $(git ls-files '*.rs') | wc -l`, then report the number and the worst offenders.
 - `cargo +nightly fmt --all --check`.
 - Confirm the settings file parses: `python3 -m json.tool .claude/settings.json`.
+
+`$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
+
+```sh
+find ~/.claude/plugins -maxdepth 5 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
+```

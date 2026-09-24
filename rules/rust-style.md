@@ -9,7 +9,7 @@ Home of the `R` rules. `core.md` carries the short form of R1 to R11, the rest l
 The recurring failure is comment bloat: blocks that restate the code, narrate the steps, or record what the code used to do. They rot on the first edit and push the actual code off the screen.
 
 - **R2** A comment answers why, or states a contract the types cannot. Never what. No banners, no step narration, no change history, git has that.
-- **R3** At most 4 consecutive `//` lines. When editing existing code, trim the comments around it rather than adding to them.
+- **R3** At most 4 consecutive `//` lines in what you write. When editing existing code, do not grow the comments around it. Comments you did not write stay (R5), and the edit hook only judges the lines your edit added.
 - **R4** A longer explanation belongs in a decision record under `docs/decisions/`, with the code pointing at it.
 - **R5** Keep the comments and the `debug!` / `info!` / `warn!` / `error!` / `trace!` statements that were already there, unless the code they describe is gone.
 - **R17** Comments are `//` and `///`. No `/* */` blocks: they are where banner headers and step narration come back, and rustfmt leaves them alone. `comment_lint.py` flags them.

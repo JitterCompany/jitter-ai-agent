@@ -26,16 +26,16 @@ This skill's script is exactly such a fix script.
 
 ```bash
 # Dry run, report what would change, exit 1 if fixes are needed (flag stage):
-python3 ~/.claude/skills/fix-kicad-paths/fix_kicad_paths.py --check
+python3 "$JITTER_ROOT/skills/fix-kicad-paths/fix_kicad_paths.py" --check
 
 # Fix in place across the whole repo (run from anywhere inside it):
-python3 ~/.claude/skills/fix-kicad-paths/fix_kicad_paths.py
+python3 "$JITTER_ROOT/skills/fix-kicad-paths/fix_kicad_paths.py"
 
 # Fix specific files or directories:
-python3 ~/.claude/skills/fix-kicad-paths/fix_kicad_paths.py path/to/foo.kicad_sch hardware/
+python3 "$JITTER_ROOT/skills/fix-kicad-paths/fix_kicad_paths.py" path/to/foo.kicad_sch hardware/
 
 # Match more than just /home (default prefix is /home; use / for all abs paths):
-python3 ~/.claude/skills/fix-kicad-paths/fix_kicad_paths.py --prefix /
+python3 "$JITTER_ROOT/skills/fix-kicad-paths/fix_kicad_paths.py" --prefix /
 ```
 
 Then review and stage: `git add -p` (or `git add <files>`), and commit.
@@ -69,10 +69,10 @@ untouched and reported to stderr; the script exits non-zero so you notice.
   computing the relative path, so a symlinked path never leaks a broken
   `../../../s/...` result or a spurious "could not resolve".
 - **Backup/history dirs** (`.history`, `backup`, `backups`) are skipped.
-- **New blacklist strings.** If pre-commit flags a string this script doesn't
-  handle, it's not necessarily a path, add it to the blacklist in the
-  pre-commit script (`~/git/scripts/pre-commit`, `str_blacklist`) or
-  extend this script if it's another hardcoded-path form.
+- **New blacklist strings.** If a pre-commit check flags a string this script
+  does not handle, it is not necessarily a path. Extend this script when it is
+  another hardcoded-path form, and see `templates/pre-commit` plus
+  `tools/path_leak_check.py` for the shared check (C3).
 - KiCad accepts both `${KIPRJMOD}/../x` and bare `../x` for `Sim.Library`;
   this script emits the `${KIPRJMOD}` form for clarity, but pre-existing bare
   relative paths are already portable and left alone.

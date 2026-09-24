@@ -102,12 +102,36 @@ def main():
         hits = len(out.strip().splitlines())
         ok &= check("comment_lint flags banners, narration, history, long runs", code == 1 and hits >= 4, out)
 
-        payload = json.dumps({"tool_name": "Edit", "tool_input": {"file_path": str(tmp / "bloat.rs")}})
-        done = subprocess.run(
-            [sys.executable, str(TOOLS / "comment_lint.py"), "--hook"],
-            input=payload, capture_output=True, text=True, check=False,
+        def hook(tool_input):
+            return subprocess.run(
+                [sys.executable, str(TOOLS / "comment_lint.py"), "--hook"],
+                input=json.dumps({"tool_name": "Edit", "tool_input": tool_input}),
+                capture_output=True, text=True, check=False,
+            )
+
+        wrote_the_bloat = hook({
+            "file_path": str(tmp / "bloat.rs"),
+            "new_string": "    // Step 1: walk the vector\n    // this used to return 0 here\n",
+        })
+        ok &= check("--hook exits 2 on what this edit wrote", wrote_the_bloat.returncode == 2, wrote_the_bloat.stderr)
+
+        touched_elsewhere = hook({
+            "file_path": str(tmp / "bloat.rs"),
+            "new_string": "pub const LIMIT: usize = 8;\n",
+        })
+        ok &= check(
+            "--hook stays quiet about comments this edit did not write (R5)",
+            touched_elsewhere.returncode == 0,
+            touched_elsewhere.stderr,
         )
-        ok &= check("comment_lint --hook exits 2 so the agent sees it", done.returncode == 2, done.stderr)
+
+        (tmp / "allowed.rs").write_text(
+            "// jitter-lint: allow R3 the PLL derivation belongs next to the register writes\n"
+            + "".join("// line {}\n".format(i) for i in range(6))
+            + "fn x() {}\n"
+        )
+        code, out = run("comment_lint.py", [str(tmp / "allowed.rs")])
+        ok &= check("an allow marker suppresses that rule on that spot", code == 0, out)
 
         (tmp / "clean.toml").write_text(CLEAN_PATHS)
         code, out = run("path_leak_check.py", [str(tmp / "clean.toml")])
@@ -130,6 +154,30 @@ def main():
         git(["init", "-q", "-b", "main"], repo)
         git(["add", "-A"], repo)
         git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], repo)
+
+        # --staged must judge the index, not the worktree.
+        leaky = repo / "notes.md"
+        leaky.write_text(LEAKY)
+        git(["add", "notes.md"], repo)
+        leaky.write_text("clean now\n")
+        code, out = run("path_leak_check.py", ["--staged"], cwd=repo)
+        ok &= check("--staged reads the staged content, not the worktree", code == 1, out)
+
+        git(["checkout", "--", "notes.md"], repo)
+        git(["rm", "-q", "--cached", "notes.md"], repo)
+        leaky.write_text(LEAKY)
+        code, out = run("path_leak_check.py", ["--staged"], cwd=repo)
+        ok &= check("--staged ignores an unstaged leak", code == 0, out)
+        leaky.unlink()
+
+        keys = repo / "keys.rs"
+        keys.write_text('const HEADER: &str = "-----BEGIN EC PRIVATE KEY-----";\n')
+        code, out = run("path_leak_check.py", [str(keys)], cwd=repo)
+        ok &= check("a PEM header constant is not a leak without key material", code == 0, out)
+
+        (repo / ".gitmodules").write_text('\turl = git@github.com:JitterCompany/pcb_release.git\n')
+        code, out = run("path_leak_check.py", [str(repo / ".gitmodules")], cwd=repo)
+        ok &= check("a git@ remote is not an email address", code == 0, out)
 
         code, out = run("kicad_project_check.py", [], cwd=repo)
         ok &= check("kicad_project_check quiet when nothing was dropped", code == 0, out)

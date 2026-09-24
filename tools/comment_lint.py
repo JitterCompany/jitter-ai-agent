@@ -24,8 +24,10 @@ MIN_FN_LINES_FOR_RATIO = 12  # ignore short fns, the ratio is noise there
 # The ratio check is off by default: it fires on data tables that carry one short why-comment
 # per row, which is exactly the commenting we want. Enable it with --ratio for a one-off sweep.
 IGNORE_FILE = ".jitter-lint-ignore"  # optional, one glob per line, for vendored trees
+# A line that has a good reason to break a rule says so, and says why.
+ALLOW_MARKER = re.compile(r"jitter-lint:\s*allow\s+([A-Z]\d+)")
 
-BANNER = re.compile(r"^\s*(//[/!]?|/?\*+/?)\s*[=*#~_-]{4,}\s*$")
+BANNER = re.compile(r"^\s*(//[/!]?|/?\*+/?)\s*[=*#~_-]{4,}\s*$|^\s*/{5,}\s*$")
 BLOCK_OPEN = re.compile(r"/\*")
 BLOCK_CLOSE = re.compile(r"\*/")
 # Only real narration. A numbered list of cases or invariants is fine.
@@ -53,12 +55,33 @@ def scan(path, ratio=False):
 
     blocks = block_regions(lines)
     findings = []
+    allowed = allow_markers(lines)
     findings += scan_runs(lines)
     findings += scan_blocks(lines, blocks)
     findings += scan_patterns(lines, blocks)
     if ratio:
         findings += scan_fn_ratio(lines)
-    return sorted(findings)
+    return sorted(f for f in findings if not suppressed(f, allowed))
+
+
+def allow_markers(lines):
+    """{line index: rule id} for every `jitter-lint: allow R3 <reason>` marker."""
+    markers = {}
+    for i, line in enumerate(lines):
+        found = ALLOW_MARKER.search(line)
+        if found:
+            markers[i] = found.group(1)
+    return markers
+
+
+def suppressed(finding, allowed):
+    """A marker covers the line it sits on and the 2 lines after it."""
+    lineno, message = finding
+    rule = message.split(":", 1)[0]
+    for index, allowed_rule in allowed.items():
+        if allowed_rule == rule and 0 <= index - (lineno - 1) <= 2:
+            return True
+    return False
 
 
 def block_regions(lines):
@@ -212,11 +235,8 @@ def scan_fn_ratio(lines):
     return findings
 
 
-def strip_strings(line, keep_block=False):
-    """Drop string and char literals, and the trailing // comment, so what is left is code.
-
-    keep_block leaves /* and */ in place, which is what block_regions needs.
-    """
+def strip_strings(line):
+    """Drop string and char literals, and the trailing // comment, so what is left is code."""
     out = []
     quote = None
     k = 0
@@ -236,6 +256,20 @@ def strip_strings(line, keep_block=False):
             out.append(ch)
         k += 1
     return "".join(out)
+
+
+def in_edit(lines, lineno, message, touched):
+    """Did this edit write the line the finding sits on?
+
+    A run or block finding points at its first line, so a few lines of slack covers the case
+    where the edit added the tail of an existing comment block.
+    """
+    span = 12 if message.startswith(("R3", "R12", "R17")) else 1
+    for offset in range(span):
+        index = lineno - 1 + offset
+        if 0 <= index < len(lines) and lines[index].strip() in touched:
+            return True
+    return False
 
 
 def ignore_globs(start):
@@ -266,10 +300,27 @@ def ignored(path):
     return any(fnmatch.fnmatch(rel, g) for g in globs)
 
 
+def written_lines(tool_input):
+    """The comment lines this edit actually wrote, as a set of stripped texts.
+
+    Findings are filtered against it in hook mode, so an edit is judged on what it added,
+    never on comments someone else wrote elsewhere in the file (R5).
+    """
+    texts = set()
+    chunks = [tool_input.get("new_string"), tool_input.get("content")]
+    for edit in tool_input.get("edits") or []:
+        chunks.append(edit.get("new_string"))
+    for chunk in chunks:
+        if isinstance(chunk, str):
+            texts.update(line.strip() for line in chunk.splitlines() if line.strip())
+    return texts
+
+
 def main(argv):
     hook_mode = "--hook" in argv
     ratio = "--ratio" in argv
     paths = [a for a in argv if not a.startswith("-")]
+    touched = None
 
     if hook_mode:
         try:
@@ -279,6 +330,7 @@ def main(argv):
         tool_input = payload.get("tool_input") or {}
         path = tool_input.get("file_path") or tool_input.get("notebook_path")
         paths = [path] if path else []
+        touched = written_lines(tool_input)
 
     paths = [p for p in paths if p and p.endswith(".rs") and not ignored(p)]
     if not paths:
@@ -286,7 +338,13 @@ def main(argv):
 
     report = []
     for path in paths:
+        try:
+            lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            lines = []
         for line, message in scan(path, ratio=ratio):
+            if touched is not None and not in_edit(lines, line, message, touched):
+                continue
             report.append("{}:{}: {}".format(path, line, message))
 
     if not report:
@@ -294,9 +352,9 @@ def main(argv):
 
     if hook_mode:
         sys.stderr.write(
-            "Comment check, Jitter rules R2 to R5 and R12:\n"
+            "Comment check on what this edit wrote, Jitter rules R2 to R5, R12 and R17:\n"
             + "\n".join(report)
-            + "\nTrim these now, in this edit.\n"
+            + "\nFix these in the lines you just wrote. Leave the rest of the file alone (R5).\n"
         )
         return 2
 

@@ -15,18 +15,18 @@ Read the diff the user names. Default to both staged and unstaged work:
 git -C <repo> diff HEAD
 ```
 
-Read `${CLAUDE_PLUGIN_ROOT}/rules/rust-style.md` first, and run
-`python3 "${CLAUDE_PLUGIN_ROOT}/tools/comment_lint.py"` over the changed `.rs` files. The
+Read `$JITTER_ROOT/rules/rust-style.md` first, and run
+`python3 "$JITTER_ROOT/tools/comment_lint.py"` over the changed `.rs` files. The
 script catches the mechanical cases, so spend your attention on what it cannot see.
 
 ## What to look for
 
-1. **Comments**: blocks that restate the code, step narration, change history, banners, doc comments padded past their summary. Quote the comment and give the replacement, or say delete.
-2. **C-isms**: index loops, sentinel returns, out-params, bool-plus-out-param instead of `Result`, integer flags instead of enums, manual copy loops, raw numeric types where a newtype carries the unit.
-3. **New macros** added to remove repetition, and `matches!()` where `if let` or `match` reads better.
-4. **Layout**: `mod.rs` files, fully-qualified paths in signatures, specifics leaking into shared or generic modules.
-5. **Interfaces**: free-text config fields a tool parses, scope decided by a hardcoded name list, a CLI flag set replaced instead of extended, a thin wrapper where an established crate fits, a raw `.send().await`.
-6. **Leaks**: `/home/<user>` paths, personal email addresses or tokens in anything committed.
+Read `$JITTER_ROOT/rules/rust-style.md` and review against it, in that order of severity:
+comments (R2 to R5, R12, R17), C-isms (R1), new macros (R6), layout (R7, R13), interfaces
+(R8, R9, R14), firmware (R11, R15, R16). Add C3 leaks: local paths, personal addresses or
+tokens in anything committed.
+
+Do not restate the rules here. The file is the single copy, this agent applies it.
 
 ## Output
 
@@ -39,3 +39,9 @@ path/to/file.rs:LINE  <rule>
 ```
 
 Then one line: how many findings, and whether the diff is fine to commit as is. No praise, no summary of what the diff does. Report nothing rather than padding the list. Skip anything the diff did not touch, unless it is directly adjacent and wrong.
+
+`$JITTER_ROOT` is printed at session start by the plugin's own hook, as `JITTER_ROOT=<path>`. Use that path. If it is not in context, find it with:
+
+```sh
+find ~/.claude/plugins -maxdepth 5 -name comment_lint.py -path '*tools*' 2>/dev/null | head -1
+```
