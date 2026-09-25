@@ -559,6 +559,14 @@ def hook_wiring_cases(ok):
         for matcher in event
         for entry in matcher["hooks"]
     )
+    # The versioned cache path goes stale on a plugin update, so the skill must not write it.
+    extras = (TOOLS.parent / "skills" / "setup-extras" / "SKILL.md").read_text()
+    ok &= check(
+        "setup-extras warns against writing the versioned plugin path",
+        "plugins/cache" in extras and "marketplaces" in extras,
+        "it should prefer the marketplace checkout or a clone",
+    )
+
     marker = "jitter-ai-agent/onboarded"
     skill = (TOOLS.parent / "skills" / "setup-extras" / "SKILL.md").read_text()
     ok &= check(

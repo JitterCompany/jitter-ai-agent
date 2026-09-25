@@ -25,11 +25,12 @@ cat ~/.config/jitter-git/checks-path 2>/dev/null
 echo "$JITTER_PRECOMMIT_CHECKS"
 ```
 
-To enable, with their yes, add one line to `~/.config/jitter-git/checks-path`:
+To enable, with their yes, add one line to `~/.config/jitter-git/checks-path`. Use a path that survives a plugin update, in this order:
 
-```
-<the JITTER_ROOT printed at session start>/tools/precommit
-```
+1. `~/.claude/plugins/marketplaces/jitter/tools/precommit`, the marketplace checkout, which `/plugin marketplace update` keeps current.
+2. Their own clone of this repo, if they maintain one, which `git pull` keeps current.
+
+Do **not** write the `JITTER_ROOT` from the session header. That is the installed copy for one plugin version, such as `.../plugins/cache/jitter/jitter/0.1.0`, and it stops existing on the next version bump, leaving the checks silently unconfigured.
 
 Keep any lines that are already in there. Use this file, not their shell profile. An IDE or a GUI git client often does not load a profile, and the checks would then be silently off for the person least likely to notice.
 
