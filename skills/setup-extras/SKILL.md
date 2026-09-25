@@ -40,6 +40,19 @@ Then prove it works rather than assuming it does. In a scratch directory, not on
 python3 "$JITTER_ROOT/tools/precommit/path_leak_check.py" --staged
 ```
 
+### When the agent runs as its own user
+
+On a machine where Claude runs under a sandbox user, `~` is that user's home, not the person's. The config you write then gates the commits **you** make, and theirs still run unchecked, because the hook reads the home of whoever runs `git commit`.
+
+Say so plainly and give them the line for their own terminal:
+
+```sh
+mkdir -p ~/.config/jitter-git
+echo "$HOME/.claude/plugins/marketplaces/jitter/tools/precommit" >> ~/.config/jitter-git/checks-path
+```
+
+If they have no plugin install of their own, point that line at any clone of this repo instead. The checks are plain python and do not need the plugin.
+
 ## 2. The shared git hook
 
 The checks above only run if the repo actually calls the shared hook from `JitterCompany/git_utils`. Look first:
