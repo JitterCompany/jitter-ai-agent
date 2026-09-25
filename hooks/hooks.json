@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && python3 \"${CLAUDE_PLUGIN_ROOT}/tools/kicad_project_check.py\" 2>&1 || true; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && [ -d \"${CLAUDE_PLUGIN_ROOT}/typst\" ]; then for v in \"${CLAUDE_PLUGIN_ROOT}\"/typst/*/*/; do p=$(basename \"$(dirname \"$v\")\"); n=$(basename \"$v\"); d=\"${XDG_DATA_HOME:-$HOME/.local/share}/typst/packages/local/$p\"; [ -e \"$d/$n\" ] || { mkdir -p \"$d\" 2>/dev/null && ln -sfn \"${v%/}\" \"$d/$n\" 2>/dev/null; }; done; fi; exit 0"
           }
         ]
       }

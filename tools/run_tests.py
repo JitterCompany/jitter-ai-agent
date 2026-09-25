@@ -534,6 +534,22 @@ def guard_cases(ok):
     return ok
 
 
+def typst_package_cases(ok):
+    """The session hook links whatever version directories exist, so the layout has to hold."""
+    root = TOOLS.parent
+    versions = sorted((root / "typst").glob("*/*/lib.typ"))
+    ok &= check("the typst package has a lib.typ where the hook expects one", bool(versions),
+                "expected typst/<package>/<version>/lib.typ")
+    for entry in versions:
+        manifest = entry.parent / "typst.toml"
+        ok &= check(
+            "{} ships a manifest naming its entrypoint".format(entry.parent.name),
+            manifest.is_file() and 'entrypoint = "lib.typ"' in manifest.read_text(),
+            str(manifest),
+        )
+    return ok
+
+
 def hook_wiring_cases(ok):
     """The session hooks must not interpolate a missing plugin root into the session."""
     wiring = json.loads((TOOLS.parent / "hooks" / "hooks.json").read_text())
@@ -560,6 +576,7 @@ def main():
         ok = guard_cases(ok)
         ok = approval_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
+    ok = typst_package_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))
     return 0 if ok else 1
 

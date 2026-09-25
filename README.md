@@ -40,12 +40,7 @@ Ids exist so a rule can be cited when it is challenged, and named when someone w
 
 That is the whole setup. The rules then load in every repo you open, and nothing needs to be committed anywhere.
 
-Documents are Typst. To write reports, install the house style once:
-
-```sh
-mkdir -p ~/.local/share/typst/packages/local/jitter-report
-ln -sfn "$PWD/typst/jitter-report/0.1.0" ~/.local/share/typst/packages/local/jitter-report/0.1.0
-```
+Documents are Typst. The report house style in `typst/jitter-report/` needs no install step: a session-start hook links every version in there into your local Typst package directory, and leaves an existing link alone.
 
 Update after someone lands a change:
 

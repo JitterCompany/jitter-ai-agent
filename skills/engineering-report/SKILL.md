@@ -5,7 +5,9 @@ description: Write a Jitter engineering report as a PDF with Typst: board bring-
 
 # Engineering reports
 
-House style lives in the `jitter-report` Typst package that ships with this plugin, so a report does not carry its own copy of the brand. Install it once per machine:
+House style lives in the `jitter-report` Typst package that ships with this plugin, so a report does not carry its own copy of the brand. Nobody installs it: the plugin links it into the local Typst package directory at session start, and skips that if it is already there.
+
+If an import fails because the link is missing, for example in a shell outside a session, create it by hand:
 
 ```sh
 JITTER_ROOT=$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root")
