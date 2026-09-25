@@ -1,0 +1,6 @@
+[package]
+name = "jitter-report"
+version = "0.1.0"
+entrypoint = "lib.typ"
+authors = ["Jitter B.V."]
+description = "Jitter house style for engineering reports: bring-up, test, measurement and simulation."

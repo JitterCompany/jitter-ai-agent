@@ -20,6 +20,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/guard_push.py` | Enforces W2: the agent cannot push or open a PR without approval |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
+| `typst/jitter-report/` | The house style for engineering reports, as a local Typst package |
 | `hooks/`, `skills/`, `agents/`, `commands/` | Claude Code delivery: session hooks, skills, the review agent, `/jitter-check` |
 
 `rules/` and `tools/` need nothing but a text editor and python3. The plugin only delivers them. If you use another agent, point its instruction file at `rules/core.md`.
@@ -38,6 +39,13 @@ Ids exist so a rule can be cited when it is challenged, and named when someone w
 ```
 
 That is the whole setup. The rules then load in every repo you open, and nothing needs to be committed anywhere.
+
+Documents are Typst. To write reports, install the house style once:
+
+```sh
+mkdir -p ~/.local/share/typst/packages/local/jitter-report
+ln -sfn "$PWD/typst/jitter-report/0.1.0" ~/.local/share/typst/packages/local/jitter-report/0.1.0
+```
 
 Update after someone lands a change:
 

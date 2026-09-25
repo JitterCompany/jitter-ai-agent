@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 50">
+  <!-- Jitter complete logo (dark mode) -->
+
+  <defs>
+    <!-- Gradient for text and pulse -->
+    <linearGradient id="jitter-text-gradient-dark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4d9fdc"/>
+      <stop offset="50%" stop-color="#4d9fdc"/>
+      <stop offset="100%" stop-color="#00e5c4"/>
+    </linearGradient>
+    <linearGradient id="jitter-pulse-gradient-dark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4d9fdc"/>
+      <stop offset="50%" stop-color="#4d9fdc"/>
+      <stop offset="100%" stop-color="#00e5c4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- "Jitter" text -->
+  <text x="5" y="36"
+        font-family="'Fira Code', Monaco, 'Courier New', monospace"
+        font-size="28"
+        font-weight="400"
+        fill="url(#jitter-text-gradient-dark)">Jitter</text>
+
+  <!-- Pulse icon (scaled down, positioned after text) -->
+  <g transform="translate(115, 5) scale(0.4)">
+    <!-- Blue border (background) -->
+    <rect x="0" y="0" width="100" height="100" rx="12" fill="#4d9fdc"/>
+    <!-- Dark background (inset) - slate-900 -->
+    <rect x="3" y="3" width="94" height="94" rx="9" fill="#0f172a"/>
+
+    <!-- Light blue shadow pulse -->
+    <path d="M 25 75 L 25 25 L 60 25 L 60 75 L 90 75"
+          fill="none"
+          stroke="rgba(77,159,220,0.35)"
+          stroke-width="10"
+          stroke-linecap="square"
+          stroke-linejoin="miter"/>
+
+    <!-- Blue main pulse with gradient -->
+    <path d="M 20 75 L 20 25 L 55 25 L 55 75 L 85 75"
+          fill="none"
+          stroke="url(#jitter-pulse-gradient-dark)"
+          stroke-width="10"
+          stroke-linecap="square"
+          stroke-linejoin="miter"/>
+  </g>
+</svg>

@@ -47,7 +47,9 @@ Keep the document's own content in its own repo, next to the work it describes, 
 
 ## Which route for which document
 
-- **Typst, this skill:** anything a customer sees, anything that wants the cover and the logo, anything that will be printed.
-- **The `sim-report-pdf` skill:** the compact engineering write-up of a simulation, which already has its own pandoc and WeasyPrint flow and a stylesheet tuned for plots and findings tables.
+Everything is Typst. There is no pandoc or WeasyPrint route any more.
+
+- **This skill:** offertes, and any one-off branded document.
+- **The `engineering-report` skill:** a bring-up, test, measurement or simulation report. It uses the `jitter-report` package, which carries the same brand plus the report furniture (cover, header, footer, verdict pills, results tables).
 
 The prose rules apply with full force here (P1 to P6), because this is the writing a customer reads.
