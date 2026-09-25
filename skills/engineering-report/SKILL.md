@@ -38,7 +38,7 @@ ln -sfn "$JITTER_ROOT/typst/jitter-report/0.1.0" ~/.local/share/typst/packages/l
 
 `From`, `Date` and `Version` are added for you. The package also gives you `note`, `restable`, `plot`, `tp`, `pill` and the verdicts `PASS`, `FAIL`, `ATTENTION`, `OPEN`, `NO-ACTION`, plus `VOLDOET`, `AANDACHT` and `GEEN-ACTIE` for a Dutch report.
 
-`doc-id` is `<project>-HW-TR-<nnn>`, numbered per project, and the number goes up for each report on the same subject. A follow-up names its predecessor under `Base document`, because a reader needs to know which report this one argues against.
+`doc-id` follows whatever the project already uses. Both existing reports happen to use `<project>-HW-TR-<nnn>`, which reads as hardware test report, numbered per project. That is a pattern from two examples, not a company standard, so match the project you are in and ask rather than inventing a scheme. A follow-up report names its predecessor under `Base document`, because a reader needs to know which report this one argues against.
 
 ## The shape both existing reports use
 
