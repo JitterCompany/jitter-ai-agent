@@ -53,10 +53,12 @@ We already have a global hook, [JitterCompany/git_utils](https://github.com/Jitt
 
 ```sh
 # in your shell profile, pointing at your clone of this repo
-export JITTER_PRECOMMIT_CHECKS="$HOME/dev/jitter/common/jitter-ai-agent/tools"
+export JITTER_PRECOMMIT_CHECKS="$HOME/dev/jitter/common/jitter-ai-agent/tools/precommit"
 ```
 
-The two worth running at commit time are `path_leak_check.py --staged` (C3) and `kicad_project_check.py` (H5). Both catch things the session hooks cannot see: a file produced by a generator rather than an edit, and KiCad clearing its own ERC and DRC exclusions. The comment and prose checks do not belong there, because they already run on every edit.
+`tools/precommit/` holds exactly the two checks that belong at commit time, `path_leak_check.py` (C3) and `kicad_project_check.py` (H5). Both catch what the session hooks cannot see: a file produced by a generator rather than an edit, and KiCad clearing its own ERC and DRC exclusions. Point at that directory rather than `tools/`, which also holds the self-tests.
+
+Support for `$JITTER_PRECOMMIT_CHECKS` is a change to git_utils itself, on the `precommit-checks` branch.
 
 The `adopt-rules` skill does the per-repo part: clippy lints and rustfmt.
 

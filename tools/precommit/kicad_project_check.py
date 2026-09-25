@@ -1,0 +1,1 @@
+../kicad_project_check.py
