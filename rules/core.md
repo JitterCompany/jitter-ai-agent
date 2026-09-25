@@ -27,8 +27,8 @@ Ids: `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` `C` `M` here. This di
 - **W5** Account for staged and unstaged changes in a diff. No `cd X && git ...`, use absolute paths.
 - **W6** Never commit or push from inside a submodule. Check with the user, then work in that library's own source tree on its own branch.
 - **W7** Say what is verified and what is a hypothesis. Search the repo for the protocol spec or the existing constant before guessing one.
-- **W8** Refactor from the highest abstraction level down. Keep specifics in the one place that owns them, and point at it from elsewhere.
-- **W9** Running tools and scripts to find things out is fine, as long as they cannot touch production or the user's running setup. Show the command so it can be repeated by hand.
+- **W8** Settle the shape before the details, or you will write the internals twice. Asked to speed up a parser, decide who owns the buffer before touching the inner loop.
+- **W9** Running tools to find things out is fine. Never touch what someone is relying on right now: a production or shared server, a deployed service, a live database. Local hardware is fair game when the request implies it ("benchmark it on my board"), otherwise ask once with the facts you already have ("J-Link found, VTREF 3.3 V, flash it?") and then stop asking for the rest of the session. Show the command so it can be repeated by hand.
 - **W10** Prefer a script file over long inline bash. Avoid `rm -rf` with wildcards, prefer adding a folder over deleting one.
 - **W11** Keep replies terse. Do not echo a plan back.
 - **W12** A PR review judges substance, including style and design. Leave formatting and compile errors to CI.

@@ -90,18 +90,55 @@ fn find_slot(&self, id: u8) -> Option<usize> {
 - **R7** A new module with submodules is `mything.rs` beside `mything/`, never `mything/mod.rs`. `tools/layout_check.py` checks it, and a tree that is frozen or vendored goes in `.jitter-lint-ignore` rather than being renamed. Import types with `use`, fully-qualified paths in signatures make them unreadable.
 - **R13** Keep specifics out of generic or shared code. If a shared file enumerates cases per device, per board or per customer, move the list to the module that owns it and let the shared code ask.
 
+Bad, in shared code:
+
+```rust
+pub fn send_measurement(&mut self, device: DeviceKind, m: Measurement) -> Result<(), Error> {
+    match device {
+        DeviceKind::Frogwatch => self.send_compressed(m),   // the shared layer now knows
+        DeviceKind::Vibration => self.send_raw(m),          // every product by name
+    }
+}
+```
+
+Good: the device module answers for itself.
+
+```rust
+pub fn send_measurement(&mut self, encoding: Encoding, m: Measurement) -> Result<(), Error> {
+    match encoding {
+        Encoding::Compressed => self.send_compressed(m),
+        Encoding::Raw => self.send_raw(m),
+    }
+}
+```
+
 ## 5. Interfaces
 
 - **R8** Prefer an enum plus an optional free-text note over a single free-text field a tool has to parse. Parsing prose is how config formats rot. Derive scope from a semantic property in the data, never from a hardcoded list of names, which goes stale the moment someone adds a part.
 - **R9** Extend a CLI by adding an optional argument that selects the new path. Do not replace the flag set, scripts depend on it. Before building new infrastructure, look at what established crates do, and do not present a thin wrapper over one as the design.
-- **R14** A raw `.send().await` on a channel is a smell. Someone has to handle the full or closed case, so wrap it in the type that owns that policy.
+- **R14** No unbounded wait in async code. `tx.send(x).await` blocks forever when the channel is full, which turns back-pressure into a lockup, and on a device into a priority inversion: the task holding the data stops, the producer it was feeding keeps running, and nothing recovers. Decide what happens when the wait would not end. Use `try_send` and handle full and closed as errors, or bound the wait with a timeout. The same question applies to taking a lock and to waiting on a peripheral flag.
+
+Bad:
+
+```rust
+// Stalls this task forever if the consumer stopped draining.
+self.tx.send(sample).await;
+```
+
+Good:
+
+```rust
+if self.tx.try_send(sample).is_err() {
+    // Losing the oldest sample is a result we can count. A stalled task is not.
+    self.dropped += 1;
+}
+```
 
 ## 6. Firmware
 
 - **R11** `no_std`: no `Box`, no `alloc`. `heapless::Vec` and friends instead.
 - **R15** Drivers and peripheral handles are not `Copy` or `Clone`. Exclusive access is the point.
-- **R16** Keep primitives consumer-agnostic. Compose the sequence at the call site, not inside the primitive.
 
 ## Not in core.md
 
-R12 to R17 are not in the session digest. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
+R12 to R15 and R17 are not in the session digest. R16 was retired: it overlapped with R13 and modern models do not need telling. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
