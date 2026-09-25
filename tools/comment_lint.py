@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Flag comment bloat in Rust files.
 
-Standalone:   python3 comment_lint.py src/foo.rs src/bar.rs
-Whole tree:   python3 comment_lint.py $(git ls-files '*.rs')
-As a hook:    python3 comment_lint.py --hook   (reads the Claude Code hook JSON on stdin)
+Standalone:    python3 comment_lint.py src/foo.rs src/bar.rs
+Your own work: python3 comment_lint.py --changed        (what you changed against HEAD)
+Whole tree:    python3 comment_lint.py $(git ls-files '*.rs')
+Stricter:      python3 comment_lint.py --changed --max-run 2
+As a hook:     python3 comment_lint.py --hook   (reads the Claude Code hook JSON on stdin)
 
 Findings come at two levels, because precision differs per rule:
 
 - block: banners, step narration, change history, new /* */ blocks. Near 100% precision on
   real Jitter code, so the hook returns 2 and the agent fixes them in the same turn.
-- advise: a long run of // lines (R3). Real code is full of long why-comments that deserve
-  to stay, so this only shows up in a sweep, never during an edit.
+- advise: a long run of // lines (R3). There is no right number here, so it never interrupts
+  an edit. Run it on your own work and pick a threshold to suit: 2 after writing a lot of
+  prose, the default 4 normally, higher when every hit turns out to be worth keeping.
 
 A line that has a good reason to break a rule says so:  // jitter-lint: allow R3 <reason>
 
@@ -21,10 +24,11 @@ Runs on Linux and macOS with a stock python3, no dependencies.
 import fnmatch
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
-MAX_COMMENT_RUN = 4  # consecutive // lines before R3 says something
+MAX_COMMENT_RUN = 4  # the default for R3, override with --max-run
 IGNORE_FILE = ".jitter-lint-ignore"  # optional, one glob per line, for vendored trees
 
 ALLOW_MARKER = re.compile(r"jitter-lint:\s*allow\s+([A-Z]\d+)")
@@ -53,7 +57,7 @@ BLOCK = "block"
 ADVISE = "advise"
 
 
-def scan(path):
+def scan(path, max_run=MAX_COMMENT_RUN):
     """Findings as (start_line, end_line, rule, severity, message)."""
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
@@ -62,7 +66,7 @@ def scan(path):
 
     blocks, string_lines, comment_at = lex(lines)
     findings = (
-        scan_runs(lines)
+        scan_runs(lines, max_run)
         + scan_blocks(blocks)
         + scan_patterns(lines, blocks, string_lines, comment_at)
     )
@@ -208,7 +212,7 @@ def as_comment(line):
     return re.sub(r"^\s*(/\*+|\*+/?)\s?", "// ", line)
 
 
-def scan_runs(lines):
+def scan_runs(lines, max_run=MAX_COMMENT_RUN):
     """R3: a long run of // lines. A blank line does not reset the run, and a SAFETY or
     INVARIANT justification is exempt because it is required elsewhere."""
     findings = []
@@ -219,7 +223,7 @@ def scan_runs(lines):
         if start is None or exempt:
             return
         length = sum(1 for i in range(start, last + 1) if LINE_COMMENT.match(lines[i]))
-        if length > MAX_COMMENT_RUN:
+        if length > max_run:
             findings.append(
                 (
                     start + 1,
@@ -227,7 +231,7 @@ def scan_runs(lines):
                     "R3",
                     ADVISE,
                     "R3: {} comment lines in one run (over {}). Check they say why rather than "
-                    "what, and keep them if they do.".format(length, MAX_COMMENT_RUN),
+                    "what, and keep them if they do.".format(length, max_run),
                 )
             )
 
@@ -360,9 +364,29 @@ def in_spans(finding, spans):
     return any(not (end < low or start > high) for low, high in spans)
 
 
+def changed_files():
+    """Rust files this working tree changed against HEAD, staged or not."""
+    done = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    return [line for line in done.stdout.splitlines() if line.endswith(".rs")]
+
+
 def main(argv):
     hook_mode = "--hook" in argv
-    paths = [a for a in argv if not a.startswith("-")]
+    max_run = MAX_COMMENT_RUN
+    skip = set()
+    if "--max-run" in argv:
+        index = argv.index("--max-run") + 1
+        if index >= len(argv) or not argv[index].isdigit():
+            sys.stderr.write("--max-run needs a number, for example --max-run 2\n")
+            return 2
+        max_run = int(argv[index])
+        skip.add(index)
+    paths = [a for i, a in enumerate(argv) if not a.startswith("-") and i not in skip]
+    if "--changed" in argv:
+        paths = changed_files()
     spans = {}
 
     if hook_mode:
@@ -382,7 +406,7 @@ def main(argv):
 
     blocking, advisory = [], []
     for path in paths:
-        for finding in scan(path):
+        for finding in scan(path, max_run):
             if hook_mode and not in_spans(finding, spans.get(path, [])):
                 continue
             line = "{}:{}: {}".format(path, finding[0], finding[4])

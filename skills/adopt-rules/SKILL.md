@@ -7,9 +7,11 @@ description: Wire a Jitter repo into the shared agent conventions - the plugin v
 
 Templates live in `$JITTER_ROOT/templates/`. Read each one before copying, and merge rather than overwrite when the target file exists.
 
-## 1. Plugin, so colleagues get the rules automatically
+## 1. Nothing about the plugin goes in the repo
 
-Merge `templates/claude-settings.json` into the repo's `.claude/settings.json` and commit it. Anyone who opens the repo is then prompted to install the marketplace and the plugin. A repo with KiCad files also gets `rules/hardware.md` automatically, nothing to add.
+Do not add `.claude/settings.json`, and do not reference this repo from a project repo at all. Several Jitter repos are public or shared with a client. Colleagues install the plugin once at user level, which is in the README, and the rules then load everywhere.
+
+If someone wants the rules enabled per project rather than globally, that goes in their own untracked `.claude/settings.local.json`.
 
 ## 2. Clippy lints
 
@@ -21,11 +23,11 @@ Run `cargo clippy --all-targets` once and report the count. Do not fix the whole
 
 If the repo has no `rustfmt.toml`, copy `templates/rustfmt.toml`. Formatting is `cargo +nightly fmt --all`.
 
-## 4. Path leak check
+## 4. Pre-commit checks
 
-Offer to install `tools/path_leak_check.py --staged` as a pre-commit hook. It blocks `/home/<user>`, personal email addresses, keys and tokens from entering a commit.
+The repo already has a pre-commit hook if `.git/hooks/pre-commit` points at the shared one from `git_utils`. Check that first, and do not install a second hook beside it.
 
-In a KiCad repo, add `tools/kicad_project_check.py` to the same hook, so a `.kicad_pro` that lost its ERC/DRC exclusions cannot be committed by accident. Mention the `fix-kicad-paths` skill for the absolute paths KiCad bakes into project files.
+The plug-in point is `$JITTER_PRECOMMIT_CHECKS` in the user's shell profile, pointing at this repo's `tools/`. Tell them the line to add rather than editing their profile yourself. In a KiCad repo, mention the `fix-kicad-paths` skill for the absolute paths KiCad bakes into project files.
 
 ## 5. Vendored code
 

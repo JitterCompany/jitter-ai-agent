@@ -19,7 +19,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/layout_check.py` | R7, the `mod.rs` files |
 | `tools/guard_push.py` | Enforces W2: the agent cannot push or open a PR without approval |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
-| `templates/` | Clippy workspace lints, rustfmt, per-repo `.claude/settings.json`, pre-commit hook |
+| `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
 | `hooks/`, `skills/`, `agents/`, `commands/` | Claude Code delivery: session hooks, skills, the review agent, `/jitter-check` |
 
 `rules/` and `tools/` need nothing but a text editor and python3. The plugin only delivers them. If you use another agent, point its instruction file at `rules/core.md`.
@@ -30,16 +30,14 @@ Each rules file owns a prefix and hands out its own numbers: `R` rust-style, `P`
 
 Ids exist so a rule can be cited when it is challenged, and named when someone wants an exception. Claude does not narrate them (M2).
 
-## Use it in a repo
-
-Commit `templates/claude-settings.json` as the repo's `.claude/settings.json`. Everyone who opens the repo is prompted to install the marketplace and the plugin.
-
-Personal install, without touching a repo:
+## Install it, once per person
 
 ```sh
 /plugin marketplace add JitterCompany/jitter-ai-agent
 /plugin install jitter@jitter
 ```
+
+That is the whole setup. The rules then load in every repo you open, and nothing needs to be committed anywhere.
 
 Update after someone lands a change:
 
@@ -47,11 +45,26 @@ Update after someone lands a change:
 /plugin marketplace update jitter
 ```
 
-The `adopt-rules` skill does the rest of the wiring: clippy lints, rustfmt, the pre-commit hook.
+**Nothing goes in a project repo that points at this one.** Several of our repos are public or shared with a client, and a committed `.claude/settings.json` naming a private marketplace would both disclose it and prompt outside readers to install something they cannot reach. What a project repo may commit is ordinary tooling that stands on its own: the clippy `[workspace.lints]` block and `rustfmt.toml`.
+
+## Pre-commit checks
+
+We already have a global hook, [JitterCompany/git_utils](https://github.com/JitterCompany/git_utils), symlinked into each repo as `.git/hooks/pre-commit`. The checks here plug into that rather than replacing it, so a repo gains nothing new to commit:
+
+```sh
+# in your shell profile, pointing at your clone of this repo
+export JITTER_PRECOMMIT_CHECKS="$HOME/dev/jitter/common/jitter-ai-agent/tools"
+```
+
+The two worth running at commit time are `path_leak_check.py --staged` (C3) and `kicad_project_check.py` (H5). Both catch things the session hooks cannot see: a file produced by a generator rather than an edit, and KiCad clearing its own ERC and DRC exclusions. The comment and prose checks do not belong there, because they already run on every edit.
+
+The `adopt-rules` skill does the per-repo part: clippy lints and rustfmt.
 
 ## Run the checks by hand
 
 ```sh
+python3 tools/comment_lint.py --changed                # your own work, before handing it back
+python3 tools/comment_lint.py --changed --max-run 2    # stricter when you wrote a lot of prose
 python3 tools/comment_lint.py $(git ls-files '*.rs')
 python3 tools/path_leak_check.py --staged              # what the pre-commit hook runs
 python3 tools/kicad_project_check.py                   # in a KiCad repo, before committing

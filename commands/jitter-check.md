@@ -6,7 +6,7 @@ Run the checks that apply to this repo, from the plugin root:
 
 ```sh
 JITTER_ROOT=$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/root")
-python3 "$JITTER_ROOT/tools/comment_lint.py" $(git ls-files '*.rs')
+python3 "$JITTER_ROOT/tools/comment_lint.py" $(git ls-files '*.rs')   # --changed for just your work
 python3 "$JITTER_ROOT/tools/path_leak_check.py" $(git ls-files)
 python3 "$JITTER_ROOT/tools/kicad_project_check.py"
 python3 "$JITTER_ROOT/tools/layout_check.py"

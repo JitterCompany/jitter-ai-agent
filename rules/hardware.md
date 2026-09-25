@@ -31,7 +31,7 @@ Opening a project is enough for KiCad to rewrite `.kicad_pro`, and it drops thin
 
 ## Power integrity and EMC
 
-Push back on outdated textbook advice, with a reason:
+These are for advising, reviewing and troubleshooting a circuit, which is where they come up. The `circuit-advice` skill loads them in a session that has no KiCad files. Push back on outdated textbook advice, and give the reason:
 
 - **H14** No split ground planes. One solid reference plane, partition by placement.
 - **H15** No mixed-value decoupling stacks (100nF plus 10nF plus 1nF on one pin). Use fewer, larger caps with low ESL.

@@ -8,6 +8,7 @@ that must stay silent. Every case a review found broken has a test named after i
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -213,6 +214,13 @@ def comment_lint_cases(tmp, ok):
     over_limit.write_text("// a\n// b\n// c\n// d\n// e\nfn x() {}\n")
     code, out = run("comment_lint.py", [str(over_limit)])
     ok &= check("a run of 5 is reported", code == 1 and "R3" in out, out)
+
+    code, out = run("comment_lint.py", ["--max-run", "6", str(over_limit)])
+    ok &= check("--max-run loosens the threshold", code == 0, out)
+    code, out = run("comment_lint.py", ["--max-run", "2", str(at_limit)])
+    ok &= check("--max-run tightens it", code == 1 and "R3" in out, out)
+    code, out = run("comment_lint.py", ["--max-run", "x", str(at_limit)])
+    ok &= check("--max-run rejects a non-number", code == 2, out)
 
     # Contract: four fill characters make a banner.
     short_banner = tmp / "short_banner.rs"
@@ -471,6 +479,43 @@ GUARD_ORDINARY = [
 ]
 
 
+def approval_cases(tmp, ok):
+    """The scopes the user can approve: this push, this session, this repo."""
+    cache = tmp / "cache"
+    repo = tmp / "approval-repo"
+    other = tmp / "other-repo"
+    for folder in (repo, other):
+        folder.mkdir(parents=True, exist_ok=True)
+        git(["init", "-q"], folder)
+
+    def push(command, session="sess-A", cwd=repo):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "guard_push.py"), "--hook"],
+            input=json.dumps({
+                "tool_name": "Bash", "session_id": session, "cwd": str(cwd),
+                "tool_input": {"command": command},
+            }),
+            capture_output=True, text=True, check=False,
+            env=dict(os.environ, XDG_CACHE_HOME=str(cache)),
+        )
+        return done.returncode
+
+    ok &= check("an unapproved push is blocked", push("git push origin main") == 2)
+    ok &= check("JITTER_PUSH_OK=1 allows one push", push("JITTER_PUSH_OK=1 git push") == 0)
+    ok &= check("and only that one push", push("git push origin main") == 2)
+    ok &= check("=session allows the rest of the session", push("JITTER_PUSH_OK=session git push") == 0)
+    ok &= check("a later push in that session passes", push("git push origin main") == 0)
+    ok &= check("another session is still blocked", push("git push origin main", session="sess-B") == 2)
+    ok &= check("=repo covers the repo", push("JITTER_PUSH_OK=repo git push", session="sess-B") == 0)
+    ok &= check("a new session in that repo passes", push("git push", session="sess-C") == 0)
+    ok &= check("a different repo is still blocked", push("git push", session="sess-C", cwd=other) == 2)
+
+    for marker in (cache / "jitter-ai-agent" / "push-approvals").glob("*"):
+        marker.unlink()
+    ok &= check("deleting the state file revokes it", push("git push", session="sess-C") == 2)
+    return ok
+
+
 def guard_cases(ok):
     for command, name in GUARD_PUSHES:
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
@@ -479,6 +524,7 @@ def guard_cases(ok):
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
         ok &= check("guard allows: " + name, result[0] == 0, result[1])
 
+    # The threshold is a setting, not a rule, so both directions have to work.
     # The candidate expansion used to be quadratic, which cost seconds on an ordinary command.
     long_command = "timeout 300 cargo test " + " ".join("--arg{}".format(i) for i in range(800))
     started = time.time()
@@ -512,6 +558,7 @@ def main():
         ok = prose_cases(tmp, ok)
         ok = repo_cases(tmp, ok)
         ok = guard_cases(ok)
+        ok = approval_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))
     return 0 if ok else 1

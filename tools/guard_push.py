@@ -7,17 +7,30 @@ would publish something, which stops the tool call and hands the reason back to 
 W2 is the one rule whose violation cannot be undone, so it is enforced rather than asked for.
 A human pushing from their own terminal is unaffected: this only sees the agent's Bash calls.
 
-After the user approves a specific push:  JITTER_PUSH_OK=1 git push ...
+After the user approves, the same command runs with one of:
+
+    JITTER_PUSH_OK=1        this push only
+    JITTER_PUSH_OK=session  every push in this session, once they said so
+    JITTER_PUSH_OK=repo     every push in this repo for 30 days
+
+Use the narrowest scope the user actually agreed to. A session or repo approval is remembered
+in ${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/push-approvals, and deleting that file or
+directory revokes it.
 
 This is a reminder, not a security control. An agent that wants to get around it can, for
 example by writing a script or going through ssh. It exists to catch the agent that forgets,
 so when in doubt it blocks: a false positive costs one line, a missed push cannot be undone.
 """
 
+import hashlib
 import json
+import os
 import re
 import shlex
+import subprocess
 import sys
+import time
+from pathlib import Path
 
 PUBLISHING = [
     ("git", ["push"], "git push"),
@@ -36,7 +49,8 @@ GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
             "--no-replace-objects", "--no-optional-locks"}
 HELP = {"--help", "-h"}
 DRY_RUN = {"--dry-run", "-n"}
-APPROVED = "JITTER_PUSH_OK=1"
+APPROVAL_VAR = "JITTER_PUSH_OK"
+REPO_APPROVAL_DAYS = 30
 PROGRAMS = {command for command, _, _ in PUBLISHING}
 
 SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
@@ -133,8 +147,11 @@ def words(segment):
 
 
 def strip_prefix(tokens):
-    """Drop grouping words, continuations and leading VAR=value assignments."""
-    approved = False
+    """Drop grouping words, continuations and leading VAR=value assignments.
+
+    Returns the remaining tokens and the approval scope the command carried, if any.
+    """
+    approved = None
     changed = True
     while changed and tokens:
         changed = False
@@ -142,7 +159,9 @@ def strip_prefix(tokens):
             tokens.pop(0)
             changed = True
         while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
-            approved = approved or tokens[0] == APPROVED
+            name, _, value = tokens[0].partition("=")
+            if name == APPROVAL_VAR and value:
+                approved = value
             tokens.pop(0)
             changed = True
     return tokens, approved
@@ -155,7 +174,9 @@ def publishing_in(segment, depth=0):
 
 def in_tokens(tokens, depth=0):
     tokens, approved = strip_prefix(list(tokens))
-    if approved or not tokens:
+    if approved:
+        return None
+    if not tokens:
         return None
 
     program = tokens[0].rsplit("/", 1)[-1]
@@ -198,6 +219,60 @@ def in_tokens(tokens, depth=0):
     return None
 
 
+def state_dir():
+    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(base) / "jitter-ai-agent" / "push-approvals"
+
+
+def repo_key(cwd):
+    """A stable name for the repo the command runs in, or None outside one."""
+    done = subprocess.run(
+        ["git", "-C", cwd or ".", "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, check=False,
+    )
+    top = done.stdout.strip()
+    if not top:
+        return None
+    return "repo-" + hashlib.sha1(top.encode("utf-8")).hexdigest()[:16]
+
+
+def remember(scope, session_id, cwd):
+    """Record a session or repo approval so the user is not asked again."""
+    name = None
+    if scope == "session" and session_id:
+        name = "session-" + re.sub(r"[^A-Za-z0-9_-]", "", session_id)[:64]
+    elif scope == "repo":
+        name = repo_key(cwd)
+    if not name:
+        return
+    try:
+        folder = state_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text(str(int(time.time())), encoding="utf-8")
+    except OSError:
+        pass  # remembering is a convenience, never a reason to fail
+
+
+def already_approved(session_id, cwd):
+    """Did the user approve pushes for this session, or for this repo recently?"""
+    folder = state_dir()
+    candidates = []
+    if session_id:
+        candidates.append(("session-" + re.sub(r"[^A-Za-z0-9_-]", "", session_id)[:64], None))
+    key = repo_key(cwd)
+    if key:
+        candidates.append((key, REPO_APPROVAL_DAYS * 86400))
+    for name, ttl in candidates:
+        marker = folder / name
+        try:
+            stamp = int(marker.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        if ttl is None or time.time() - stamp < ttl:
+            return True
+    return False
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -205,15 +280,28 @@ def main():
         return 0
 
     command = (payload.get("tool_input") or {}).get("command") or ""
+    session_id = payload.get("session_id") or ""
+    cwd = payload.get("cwd") or os.getcwd()
+
+    scope = next(
+        (s for s in (strip_prefix(words(seg))[1] for seg in segments(command)) if s), None
+    )
+    if scope in ("session", "repo"):
+        remember(scope, session_id, cwd)
+
     for segment in segments(command):
         name = publishing_in(segment)
         if name:
+            if already_approved(session_id, cwd):
+                return 0
             sys.stderr.write(
                 "W2: `{}` needs the user's approval for this specific push, and nothing in "
                 "this session shows it was given.\n"
                 "Ask them in one line, naming the branch and the remote. Committing locally "
                 "is fine meanwhile.\n"
-                "Once they approve, run the same command prefixed with {}.\n".format(name, APPROVED)
+                "Once they approve, re-run it with {var}=1 for this push, {var}=session if they "
+                "said yes for the rest of the session, or {var}=repo if they said yes for this "
+                "repo. Use the narrowest scope they agreed to.\n".format(name, var=APPROVAL_VAR)
             )
             return 2
     return 0
