@@ -553,6 +553,19 @@ def typst_package_cases(ok):
 def hook_wiring_cases(ok):
     """The session hooks must not interpolate a missing plugin root into the session."""
     wiring = json.loads((TOOLS.parent / "hooks" / "hooks.json").read_text())
+    commands = " ".join(
+        entry["command"]
+        for event in wiring["hooks"].values()
+        for matcher in event
+        for entry in matcher["hooks"]
+    )
+    marker = "jitter-ai-agent/onboarded"
+    skill = (TOOLS.parent / "skills" / "setup-extras" / "SKILL.md").read_text()
+    ok &= check(
+        "the first-run prompt and the skill agree on the marker path",
+        marker in commands and marker in skill,
+        "hook and skill must write and read the same file",
+    )
     unguarded = [
         entry["command"]
         for event in wiring["hooks"].values()

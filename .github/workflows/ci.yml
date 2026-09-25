@@ -12,10 +12,9 @@ jobs:
 
       - name: Manifests parse
         run: |
-          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
-          python3 -m json.tool .claude-plugin/plugin.json > /dev/null
-          python3 -m json.tool hooks/hooks.json > /dev/null
-          python3 -m json.tool templates/claude-settings.json > /dev/null
+          for f in $(git ls-files '*.json'); do
+            python3 -m json.tool "$f" > /dev/null || exit 1
+          done
 
       - name: Checks do what they claim
         run: python3 tools/run_tests.py

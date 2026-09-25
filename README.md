@@ -31,7 +31,7 @@ Each rules file owns a prefix and hands out its own numbers: `R` rust-style, `P`
 
 Ids exist so a rule can be cited when it is challenged, and named when someone wants an exception. Claude does not narrate them (M2).
 
-## Install it, once per person
+## Install it, once per person, in two commands
 
 ```sh
 /plugin marketplace add JitterCompany/jitter-ai-agent
@@ -52,11 +52,12 @@ Update after someone lands a change:
 
 ## Pre-commit checks
 
-We already have a global hook, [JitterCompany/git_utils](https://github.com/JitterCompany/git_utils), symlinked into each repo as `.git/hooks/pre-commit`. The checks here plug into that rather than replacing it, so a repo gains nothing new to commit:
+We already have a global hook, [JitterCompany/git_utils](https://github.com/JitterCompany/git_utils). The checks here plug into that rather than replacing it, so a repo gains nothing new to commit.
+
+You do not have to set this up by hand. The first session after installing the plugin offers it, through the `setup-extras` skill, and asks only once. What it writes is a config file rather than a shell profile, because an IDE or a GUI git client often does not load a profile:
 
 ```sh
-# in your shell profile, pointing at your clone of this repo
-export JITTER_PRECOMMIT_CHECKS="$HOME/dev/jitter/common/jitter-ai-agent/tools/precommit"
+echo "/path/to/jitter-ai-agent/tools/precommit" >> ~/.config/jitter-git/checks-path
 ```
 
 `tools/precommit/` holds exactly the two checks that belong at commit time, `path_leak_check.py` (C3) and `kicad_project_check.py` (H5). Both catch what the session hooks cannot see: a file produced by a generator rather than an edit, and KiCad clearing its own ERC and DRC exclusions. Point at that directory rather than `tools/`, which also holds the self-tests.
