@@ -26,8 +26,14 @@ CPUID = 0xE000ED00
 STM32_DBGMCU_CR = "w4 0xE0042004 0x7"
 
 
+STATUS_FILE = None
+
+
 def say(msg):
     print(msg, flush=True)
+    if STATUS_FILE:
+        with open(STATUS_FILE, "a") as f:
+            f.write(time.strftime("%H:%M:%S ") + msg + "\n")
 
 
 def jlink(device, speed, cmds):
@@ -60,10 +66,15 @@ def vtref_hint(v):
         return "no target power, or VTref pin not connected"
     if v < 2.7:
         return "low: connector not seated, or target supply is sagging"
-    return "ok"
+    return "power ok"
 
 
 def last_error(out):
+    v = vtref(out)
+    if v is not None and v >= 2.7 and re.search(r"Could not connect|Failed to power up DAP|Could not read CPUID|Attach to CPU failed", out):
+        return "SWD answers but the core does not: target asleep with debug-in-sleep off (power-cycle, or wait for a wakeup)"
+    if re.search(r"Could not find|No J-Link|not connected to the host", out, re.I):
+        return "J-Link probe not found on USB"
     errs = [l.strip() for l in out.splitlines() if re.search(r"Could not|[Ff]ailed|Error occurred", l)]
     return errs[-1][:80] if errs else ""
 
@@ -77,6 +88,9 @@ def attach(args, then=None, success=None):
     success = success or (lambda out: re.search(rf"^{CPUID:08X} = ", out, re.M))
     start = time.monotonic()
     last_report = start
+    interval = args.status_every
+    last_diag = None
+    same = 0
     tries = 0
     out = ""
     while time.monotonic() - start < args.timeout:
@@ -86,12 +100,14 @@ def attach(args, then=None, success=None):
         if success(out):
             say(f"ATTACHED after ~{tries} tries ({time.monotonic() - start:.0f} s), VTref={v} V")
             return out
-        if time.monotonic() - last_report >= args.status_every:
+        diag = (vtref_hint(v), last_error(out))
+        if diag != last_diag or time.monotonic() - last_report >= interval:
+            # Unchanged status: report 4 times at the base rate, then back off (max 5 min)
+            same = same + 1 if diag == last_diag else 0
+            interval = args.status_every if same < 4 else min(interval * 2, 300)
+            last_diag = diag
             last_report = time.monotonic()
-            say(
-                f"t={time.monotonic() - start:.0f}s tries~{tries} VTref={v} V ({vtref_hint(v)})"
-                f" last: {last_error(out)}"
-            )
+            say(f"t={time.monotonic() - start:.0f}s tries~{tries} VTref={v} V ({diag[0]}) last: {diag[1]}")
     v = vtref(out)
     say(f"GAVE UP after ~{tries} tries, VTref={v} V ({vtref_hint(v)}), last: {last_error(out)}")
     sys.exit(1)
@@ -159,6 +175,11 @@ def main():
     p.add_argument("--timeout", type=float, default=600, help="give up after this many seconds")
     p.add_argument("--keep-debug", action="store_true", help="STM32: set DBGMCU_CR on flash/reset so SWD keeps working in sleep/stop")
     p.add_argument("--status-every", type=float, default=10, help="seconds between status lines")
+    p.add_argument(
+        "--status-file",
+        default=os.environ.get("JLINK_STATUS_FILE", "/tmp/jlink-target-status.log"),
+        help="also append timestamped status lines here, for `tail -f` by a human",
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("attach").set_defaults(fn=cmd_attach)
     f = sub.add_parser("flash")
@@ -174,6 +195,8 @@ def main():
             s.add_argument("--wait", type=float, default=40, help="seconds off SWD after reset")
         s.set_defaults(fn=fn)
     args = p.parse_args()
+    global STATUS_FILE
+    STATUS_FILE = args.status_file or None
     if not args.device:
         p.error("set --device or $JLINK_DEVICE (e.g. STM32L4R7ZI)")
     args.fn(args)

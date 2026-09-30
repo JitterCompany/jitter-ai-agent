@@ -17,11 +17,15 @@ The tool is `jlink_tool.py` next to this file (Python stdlib, calls `JLinkExe`).
 | `rtt-dump --cb 0x2009FF00` | copies all RAM in one session and prints the RTT log ring, oldest first |
 | `boot-log --cb ... --wait 40` | reset, stay off SWD for N s, then `rtt-dump` |
 
-Global options: `--keep-debug` (STM32: set `DBGMCU_CR` so SWD works in sleep/stop), `--timeout`, `--speed`, `--status-every`.
+Global options: `--keep-debug` (STM32: set `DBGMCU_CR` so SWD works in sleep/stop), `--timeout`, `--speed`, `--status-every`, `--status-file`.
 
 ## Keep the user informed
 
-Attaching to a sleeping board can take minutes. Run `attach`/`flash` under the **Monitor** tool so each status line reaches the user directly, e.g. `t=24s tries~6 VTref=3.35 V (ok) last: Could not connect`. Ask them to power-cycle when the log says the target is asleep for good.
+Attaching to a sleeping board can take minutes, so never wait silently.
+
+- Run `attach`/`flash`/`boot-log` under the **Monitor** tool and post a one-line status in the chat per event. If the status says the user must act, ask for it explicitly ("power-cycle the board"), then keep retrying.
+- The tool reports immediately when the diagnosis changes. Unchanged lines come at `--status-every`, and after 4 in a row the interval doubles (max 5 min), so a long wait does not flood the chat.
+- Every line also goes, timestamped, to `--status-file` (default `/tmp/jlink-target-status.log`, or `$JLINK_STATUS_FILE`). A human can `tail -f` it without asking the agent.
 
 VTref tells you what to ask for:
 
@@ -29,7 +33,7 @@ VTref tells you what to ask for:
 |---|---|
 | ~0 V | no target power, or the cable is off |
 | 0.5 to 2.7 V | connector not seated, or supply sagging |
-| ~3.3 V but no attach | target is asleep with debug-in-sleep off, keep retrying or power-cycle |
+| ~3.3 V but no attach | target asleep with debug-in-sleep off: power-cycle, the attach lands in the boot window |
 
 ## Side effects to know before you trust a measurement
 
