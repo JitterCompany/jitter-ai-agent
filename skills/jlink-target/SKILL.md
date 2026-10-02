@@ -47,7 +47,7 @@ VTref tells you what to ask for:
 
 - A board that sleeps with `DBGMCU_CR` debug bits clear only answers in short awake windows. A power-on reset clears those bits. `--keep-debug` sets them, but a later session may put the old value back, so it is not guaranteed to stick.
 - **Do not flash a standalone image with sleep enabled for experiments.** Nothing sets the debug bits, and you get "Failed to power up DAP" from then on. Recover by running `flash` in a loop while the user power-cycles the board, so the attach lands in the boot window.
-- For debugging, build with sleep disabled (Frogwatch: feature `disable-sleep`) if you need the board reachable at all times.
+- For debugging, build with sleep disabled (usually a cargo feature such as `disable-sleep`) if you need the board reachable at all times.
 
 ## Deliberate halts as fault injection
 
