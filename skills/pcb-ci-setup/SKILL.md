@@ -22,14 +22,14 @@ Paths are inside `hardware/tools/pcb_release/`.
 | `docs/deliverables.md` | what a release writes into `production/` and `customer/` |
 | `scripts/generate_pinmap.py` | `pinmap.config.toml` schema, in the `load_config` docstring |
 
-Reference installs: built first for **5101-btbenergy-zonneboiler**, also in
-2607-telecom-displays, 2507-vpinstruments-transmitter-electronics,
-4108-frogwatch-hardware. Copy the newest one's `ci-hardware*.yml` and `pcb.sh`.
+Reference installs: any JitterCompany repo with pcb_release as a submodule, found with
+`gh search code pcb_release --owner JitterCompany --filename .gitmodules`. Copy the
+newest one's `ci-hardware*.yml` and `pcb.sh`.
 
 ## Install, in this order
 
 Steps are in `docs/install.md`. Layout assumed here is `repo/hardware/<board>/`. For a
-repo that is entirely hardware, drop the `hardware/` prefix (vpinstruments does). What the
+repo that is entirely hardware, drop the `hardware/` prefix. What the
 upstream doc does not say:
 
 1. **Always take the submodule**, at `hardware/tools/pcb_release`, never a `tools-ref` pin
@@ -69,7 +69,7 @@ The normal case, and the fastest route.
    nothing is silently unchecked, every gap is a visible warning.
 4. Write `hardware/CI-STATUS.md` from the log: the gate matrix (enforced and green, todo,
    skip) plus one row per board saying what it still owes. Copy the structure from
-   2607-telecom-displays or 4108-frogwatch-hardware.
+   a reference install's `hardware/CI-STATUS.md`.
 
 `pcb.sh <gate> <board>` enforces that board's `todo=` gates, which is how you find out one
 has gone green. In the log, `SCHEMA (dnp-lint)` belongs to **erc** and `SCHEMA (pos>=bom)`

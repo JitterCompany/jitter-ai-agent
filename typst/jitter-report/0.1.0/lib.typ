@@ -4,11 +4,11 @@
 //   #show: report.with(
 //     kind: "TEST REPORT",
 //     title: "EMC filter bench measurement",
-//     subtitle: "platform1-485-filter",
-//     doc-id: "2517-HW-TR-002",
+//     subtitle: "example-485-filter",
+//     doc-id: "0000-HW-TR-001",
 //     rev: "1.0",
 //     date: "24 September 2026",
-//     meta: (("To", "Customer B.V."), ("Performed by", "S. de Wit")),
+//     meta: (("To", "Customer B.V."), ("Performed by", "A. Engineer")),
 //   )
 //
 // The colours and the logo are the same ones the offerte template uses. They live here so a

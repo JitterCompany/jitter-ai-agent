@@ -95,7 +95,7 @@ Bad, in shared code:
 ```rust
 pub fn send_measurement(&mut self, device: DeviceKind, m: Measurement) -> Result<(), Error> {
     match device {
-        DeviceKind::Frogwatch => self.send_compressed(m),   // the shared layer now knows
+        DeviceKind::Tiltmeter => self.send_compressed(m),   // the shared layer now knows
         DeviceKind::Vibration => self.send_raw(m),          // every product by name
     }
 }

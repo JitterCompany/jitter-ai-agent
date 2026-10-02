@@ -23,8 +23,8 @@ ln -sfn "$JITTER_ROOT/typst/jitter-report/0.1.0" ~/.local/share/typst/packages/l
 #show: report.with(
   kind: "TEST REPORT",
   title: "EMC filter bench measurement",
-  subtitle: "platform1-485-filter",
-  doc-id: "2517-HW-TR-002",
+  subtitle: "example-485-filter",
+  doc-id: "0000-HW-TR-001",
   rev: "1.0",
   date: "24 September 2026",
   meta: (
@@ -32,7 +32,7 @@ ln -sfn "$JITTER_ROOT/typst/jitter-report/0.1.0" ~/.local/share/typst/packages/l
     ("Product", "the filter PCB, production files of 31 August 2026"),
     ("Test objects", "Board 2 as assembled, Board 1 with series parts replaced by 0 ohm"),
     ("Test period", "23 and 24 September 2026"),
-    ("Performed by", "S. de Wit"),
+    ("Performed by", "A. Engineer"),
     ("Base document", "Report 1: insertion-loss simulation, 21 July 2026"),
   ),
 )
@@ -80,7 +80,6 @@ If a report is going on the website or to anyone outside the project, anonymise 
 
 ## Worked examples
 
-- `2507-vpinstruments-transmitter-electronics/platform1_emc_filter/measurements/2026-09_bench/report/`, a bench measurement against a simulation, English.
-- `self/jitter_website/tmp/bringup_report_anon/`, a full board bring-up with per-test verdicts, Dutch, anonymised.
+There is a bench measurement against a simulation (English) in a customer project repo, and the anonymised bring-up report with per-test verdicts (Dutch) in the website repo. Ask the user where they are.
 
 Both predate the package and inline the style by hand. Copy their structure, not their preamble.
