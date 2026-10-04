@@ -1,40 +1,36 @@
 #!/usr/bin/env python3
-"""Block a push or a PR that the user has not approved (W2).
+"""Ask the user before the agent publishes something that is hard to take back (W2).
 
-Wired as a PreToolUse hook on Bash. Reads the hook JSON on stdin and returns 2 when a command
-would publish something, which stops the tool call and hands the reason back to the agent.
+Wired as a PreToolUse hook on Bash. Reads the hook JSON on stdin. When a command would
+publish something that needs approval, it answers with permissionDecision "ask", so Claude
+Code shows the user its own approval prompt. Everything else passes untouched.
 
-W2 is the one rule whose violation cannot be undone, so it is enforced rather than asked for.
+Needs approval:
+    git push to master or main, also through HEAD or the branch's upstream
+    git push --force, a +refspec, --delete, a :refspec, --mirror, --all, --tags, a tag
+    git push through xargs, or from a detached HEAD, where the target cannot be read
+    gh pr create, gh pr merge, gh release create, git send-email
+Free:
+    git push of a feature branch, which a PR review covers before it reaches master
+
 A human pushing from their own terminal is unaffected: this only sees the agent's Bash calls.
-
-After the user approves, the same command runs with one of:
-
-    JITTER_PUSH_OK=1        this push only
-    JITTER_PUSH_OK=session  every push in this session, once they said so
-    JITTER_PUSH_OK=repo     every push in this repo for 30 days
-
-Use the narrowest scope the user actually agreed to. A session or repo approval is remembered
-in ${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/push-approvals, and deleting that file or
-directory revokes it.
 
 This is a reminder, not a security control. An agent that wants to get around it can, for
 example by writing a script or going through ssh. It exists to catch the agent that forgets,
-so when in doubt it blocks: a false positive costs one line, a missed push cannot be undone.
+so when in doubt it asks: a false positive costs one click, a missed push cannot be undone.
 """
 
-import hashlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
-import time
-from pathlib import Path
 
 PUBLISHING = [
     ("git", ["push"], "git push"),
     ("gh", ["pr", "create"], "gh pr create"),
+    ("gh", ["pr", "merge"], "gh pr merge"),
     ("gh", ["release", "create"], "gh release create"),
     ("git", ["send-email"], "git send-email"),
 ]
@@ -49,8 +45,15 @@ GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
             "--no-replace-objects", "--no-optional-locks"}
 HELP = {"--help", "-h"}
 DRY_RUN = {"--dry-run", "-n"}
-APPROVAL_VAR = "JITTER_PUSH_OK"
-REPO_APPROVAL_DAYS = 30
+PROTECTED = {"master", "main"}
+# Push options that publish more than one branch, or rewrite or remove what is there.
+PUSH_ASKS = {
+    "-f": "a force push", "--force": "a force push", "--force-with-lease": "a force push",
+    "--force-if-includes": "a force push", "-d": "a branch delete", "--delete": "a branch delete",
+    "--mirror": "a mirror push", "--all": "a push of every branch", "--tags": "a push of every tag",
+    "--follow-tags": "a push with tags",
+}
+PUSH_OPTION_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 PROGRAMS = {command for command, _, _ in PUBLISHING}
 
 SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
@@ -147,11 +150,7 @@ def words(segment):
 
 
 def strip_prefix(tokens):
-    """Drop grouping words, continuations and leading VAR=value assignments.
-
-    Returns the remaining tokens and the approval scope the command carried, if any.
-    """
-    approved = None
+    """Drop grouping words, continuations and leading VAR=value assignments."""
     changed = True
     while changed and tokens:
         changed = False
@@ -159,23 +158,18 @@ def strip_prefix(tokens):
             tokens.pop(0)
             changed = True
         while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
-            name, _, value = tokens[0].partition("=")
-            if name == APPROVAL_VAR and value:
-                approved = value
             tokens.pop(0)
             changed = True
-    return tokens, approved
+    return tokens
 
 
-def publishing_in(segment, depth=0):
-    """The name of the publishing command this segment runs, or None."""
-    return in_tokens(words(segment), depth)
+def publishing_in(segment, cwd, depth=0):
+    """Why this segment needs approval, or None."""
+    return in_tokens(words(segment), cwd, depth)
 
 
-def in_tokens(tokens, depth=0):
-    tokens, approved = strip_prefix(list(tokens))
-    if approved:
-        return None
+def in_tokens(tokens, cwd, depth=0, via_xargs=False):
+    tokens = strip_prefix(list(tokens))
     if not tokens:
         return None
 
@@ -185,7 +179,7 @@ def in_tokens(tokens, depth=0):
         # The command sits in an argument, as in `bash -c 'cd x && git push'`.
         for token in tokens[1:]:
             for piece in segments(token):
-                found = publishing_in(piece, depth + 1)
+                found = publishing_in(piece, cwd, depth + 1)
                 if found:
                     return found
         return None
@@ -200,7 +194,7 @@ def in_tokens(tokens, depth=0):
                 continue  # this token is that option's value, as in `sudo -u git`
             name = token.rsplit("/", 1)[-1]
             if name in RUNS_A_STRING or name in WRAPPERS or name in PROGRAMS:
-                return in_tokens(tokens[index:], depth)
+                return in_tokens(tokens[index:], cwd, depth, via_xargs or program == "xargs")
         return None
 
     if DRY_RUN & set(tokens) or HELP & set(tokens):
@@ -210,67 +204,72 @@ def in_tokens(tokens, depth=0):
         if program != command:
             continue
         rest = tokens[1:]
+        repo = cwd
         while rest and (
             rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
         ):
+            if rest[0] == "-C" and len(rest) > 1:
+                repo = os.path.join(repo, os.path.expanduser(rest[1]))
             rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
-        if rest[: len(subcommand)] == subcommand:
+        if rest[: len(subcommand)] != subcommand:
+            continue
+        if name != "git push":
             return name
+        if via_xargs:
+            return "git push with a target xargs fills in"
+        return push_needs_approval(rest[1:], repo)
     return None
 
 
-def state_dir():
-    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(base) / "jitter-ai-agent" / "push-approvals"
+def git_out(repo, *args):
+    done = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, check=False)
+    return done.stdout.strip() if done.returncode == 0 else None
 
 
-def repo_key(cwd):
-    """A stable name for the repo the command runs in, or None outside one."""
-    done = subprocess.run(
-        ["git", "-C", cwd or ".", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, check=False,
-    )
-    top = done.stdout.strip()
-    if not top:
-        return None
-    return "repo-" + hashlib.sha1(top.encode("utf-8")).hexdigest()[:16]
+def push_needs_approval(args, repo):
+    """Why this `git push <args>` needs approval, or None for a feature branch."""
+    positional = []
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in PUSH_ASKS:
+            return "git push, " + PUSH_ASKS[arg]
+        elif arg.split("=", 1)[0] in PUSH_ASKS:
+            return "git push, " + PUSH_ASKS[arg.split("=", 1)[0]]
+        elif arg in PUSH_OPTION_WITH_VALUE:
+            skip = True
+        elif not arg.startswith("-"):
+            positional.append(arg)
 
+    current = git_out(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
+    refspecs = positional[1:]
+    if not refspecs:
+        # The target is the current branch's upstream, or the branch of the same name.
+        if current is None:
+            return "git push from a detached HEAD or outside a repo"
+        upstream = git_out(repo, "rev-parse", "--abbrev-ref", current + "@{upstream}")
+        targets = [current] + ([upstream.split("/", 1)[-1]] if upstream else [])
+        hit = next((b for b in targets if b in PROTECTED), None)
+        return f"git push to {hit}" if hit else None
 
-def remember(scope, session_id, cwd):
-    """Record a session or repo approval so the user is not asked again."""
-    name = None
-    if scope == "session" and session_id:
-        name = "session-" + re.sub(r"[^A-Za-z0-9_-]", "", session_id)[:64]
-    elif scope == "repo":
-        name = repo_key(cwd)
-    if not name:
-        return
-    try:
-        folder = state_dir()
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / name).write_text(str(int(time.time())), encoding="utf-8")
-    except OSError:
-        pass  # remembering is a convenience, never a reason to fail
-
-
-def already_approved(session_id, cwd):
-    """Did the user approve pushes for this session, or for this repo recently?"""
-    folder = state_dir()
-    candidates = []
-    if session_id:
-        candidates.append(("session-" + re.sub(r"[^A-Za-z0-9_-]", "", session_id)[:64], None))
-    key = repo_key(cwd)
-    if key:
-        candidates.append((key, REPO_APPROVAL_DAYS * 86400))
-    for name, ttl in candidates:
-        marker = folder / name
-        try:
-            stamp = int(marker.read_text(encoding="utf-8").strip())
-        except (OSError, ValueError):
-            continue
-        if ttl is None or time.time() - stamp < ttl:
-            return True
-    return False
+    for spec in refspecs:
+        if spec.startswith("+"):
+            return "git push, a force push"
+        src, _, dst = spec.partition(":")
+        if not src:
+            return "git push, a branch delete"
+        target = dst or src
+        if target == "HEAD" or target == "@":
+            if current is None:
+                return "git push from a detached HEAD"
+            target = current
+        if target.startswith("refs/tags/") or git_out(repo, "show-ref", "--verify", "--quiet", "refs/tags/" + target) is not None:
+            return f"git push of tag {target}"
+        target = target.removeprefix("refs/heads/")
+        if target in PROTECTED:
+            return f"git push to {target}"
+    return None
 
 
 def main():
@@ -280,30 +279,17 @@ def main():
         return 0
 
     command = (payload.get("tool_input") or {}).get("command") or ""
-    session_id = payload.get("session_id") or ""
     cwd = payload.get("cwd") or os.getcwd()
 
-    scope = next(
-        (s for s in (strip_prefix(words(seg))[1] for seg in segments(command)) if s), None
-    )
-    if scope in ("session", "repo"):
-        remember(scope, session_id, cwd)
-
     for segment in segments(command):
-        name = publishing_in(segment)
-        if name:
-            if already_approved(session_id, cwd):
-                return 0
-            sys.stderr.write(
-                "W2: `{}` needs the user's approval for this specific push, and nothing in "
-                "this session shows it was given.\n"
-                "Ask them in one line, naming the branch and the remote. Committing locally "
-                "is fine meanwhile.\n"
-                "Once they approve, re-run it with {var}=1 for this push, {var}=session if they "
-                "said yes for the rest of the session, or {var}=repo if they said yes for this "
-                "repo. Use the narrowest scope they agreed to.\n".format(name, var=APPROVAL_VAR)
-            )
-            return 2
+        reason = publishing_in(segment, cwd)
+        if reason:
+            json.dump({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "ask",
+                "permissionDecisionReason": f"W2: {reason} needs your approval.",
+            }}, sys.stdout)
+            return 0
     return 0
 
 

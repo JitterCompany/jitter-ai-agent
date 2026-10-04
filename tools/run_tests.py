@@ -428,34 +428,35 @@ def repo_cases(tmp, ok):
 
 GUARD_PUSHES = [
     ("git push origin main", "a plain push"),
-    ("git status && \\\n git push", "a push after a line continuation"),
-    ("git commit -m 'fix Bob'\\''s typo'\ngit push", "an apostrophe does not hide the next push"),
+    ("git status && \\\n git push origin main", "a push after a line continuation"),
+    ("git commit -m 'fix Bob'\\''s typo'\ngit push origin main", "an apostrophe does not hide the next push"),
     ("echo it's fine; git push origin main", "an unbalanced quote does not hide a push"),
     ('echo "a \\" b"; git push origin main', "an escaped quote does not hide a push"),
     ("bash -c 'cd /repo && git push origin main'", "an operator inside bash -c"),
     ('cat <<< "note"\ngit push origin main', "a here-string does not blind the guard"),
     ("mask=$((1 << bits))\ngit push origin main", "a left shift does not blind the guard"),
-    ("git --no-pager push", "a valueless git flag"),
-    ("timeout 60 git push", "a wrapper's own arguments"),
-    ("sudo git push", "sudo"),
+    ("git --no-pager push origin main", "a valueless git flag"),
+    ("timeout 60 git push origin main", "a wrapper's own arguments"),
+    ("sudo git push origin main", "sudo"),
     ("echo main | xargs git push origin", "xargs"),
-    ("(git push)", "a subshell"),
-    ("if true; then git push; fi", "a then branch"),
-    ("for x in a; do git push; done", "a loop body"),
-    ("echo $(git push)", "command substitution"),
-    ("/usr/bin/git push", "an absolute path"),
+    ("(git push origin main)", "a subshell"),
+    ("if true; then git push origin main; fi", "a then branch"),
+    ("for x in a; do git push origin main; done", "a loop body"),
+    ("echo $(git push origin main)", "command substitution"),
+    ("/usr/bin/git push origin main", "an absolute path"),
     ("git -C /repo push origin main", "git -C"),
     ("git send-email --to a@b patches/", "git send-email, the fourth table row"),
     ("gh release create v1.0", "gh release create, the third table row"),
     ("eval \"git push origin main\"", "eval runs a string"),
-    ("env GIT_TRACE=1 git push", "env passes through to the real command"),
-    ("sleep 1 & git push", "a background separator still starts a command"),
-    ("sudo -u git git push", "an option value is not the program"),
-    ("sudo --user=git git push", "an inline option value is not the program"),
-    ("sudo env timeout 60 nice git push", "a stack of wrappers"),
+    ("env GIT_TRACE=1 git push origin main", "env passes through to the real command"),
+    ("sleep 1 & git push origin main", "a background separator still starts a command"),
+    ("sudo -u git git push origin main", "an option value is not the program"),
+    ("sudo --user=git git push origin main", "an inline option value is not the program"),
+    ("sudo env timeout 60 nice git push origin main", "a stack of wrappers"),
     ("gh pr create --fill", "gh pr create"),
     ("cargo publish --dry-run && git push origin main", "a dry run elsewhere does not excuse it"),
-    ('echo "JITTER_PUSH_OK=1"; git push', "a quoted mention of the escape is not approval"),
+    ("gh pr merge 12 --squash", "gh pr merge"),
+    ("echo main | xargs git push origin", "xargs fills in a target the guard cannot read"),
 ]
 
 GUARD_ORDINARY = [
@@ -463,7 +464,7 @@ GUARD_ORDINARY = [
     ("git push -n origin main", "the short form of --dry-run"),
     ("sudo -u deploy cargo build", "a wrapper running something else entirely"),
     ("git push --dry-run origin main", "a dry run"),
-    ("JITTER_PUSH_OK=1 git push -u origin HEAD", "an approved push"),
+    ("git push -u origin feature-x", "a feature branch by name"),
     ("grep -rn git push docs/", "an unquoted grep"),
     ('git commit -m "wip"   # then git push later', "a trailing comment"),
     ("cat <<'EOF' > doc.md\ngit push origin main\nEOF", "a heredoc body holding a real push"),
@@ -479,50 +480,63 @@ GUARD_ORDINARY = [
 ]
 
 
-def approval_cases(tmp, ok):
-    """The scopes the user can approve: this push, this session, this repo."""
-    cache = tmp / "cache"
-    repo = tmp / "approval-repo"
-    other = tmp / "other-repo"
-    for folder in (repo, other):
-        folder.mkdir(parents=True, exist_ok=True)
-        git(["init", "-q"], folder)
+def asks(output):
+    return '"permissionDecision": "ask"' in output
 
-    def push(command, session="sess-A", cwd=repo):
+
+def branch_cases(tmp, ok):
+    """Feature branches push freely. Master, main, rewrites, deletes and tags ask."""
+    tmp = tmp / "branches"
+    repo, remote = tmp / "repo", tmp / "remote.git"
+    tmp.mkdir()
+    git(["init", "-q", "--bare", str(remote)], tmp)
+    git(["init", "-q", "-b", "master", str(repo)], tmp)
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "one"], repo)
+    git(["remote", "add", "origin", str(remote)], repo)
+    git(["push", "-q", "origin", "master"], repo)
+
+    def push(command, cwd=repo):
         done = subprocess.run(
             [sys.executable, str(TOOLS / "guard_push.py"), "--hook"],
-            input=json.dumps({
-                "tool_name": "Bash", "session_id": session, "cwd": str(cwd),
-                "tool_input": {"command": command},
-            }),
+            input=json.dumps({"tool_name": "Bash", "cwd": str(cwd), "tool_input": {"command": command}}),
             capture_output=True, text=True, check=False,
-            env=dict(os.environ, XDG_CACHE_HOME=str(cache)),
         )
-        return done.returncode
+        return done.returncode == 0 and asks(done.stdout)
 
-    ok &= check("an unapproved push is blocked", push("git push origin main") == 2)
-    ok &= check("JITTER_PUSH_OK=1 allows one push", push("JITTER_PUSH_OK=1 git push") == 0)
-    ok &= check("and only that one push", push("git push origin main") == 2)
-    ok &= check("=session allows the rest of the session", push("JITTER_PUSH_OK=session git push") == 0)
-    ok &= check("a later push in that session passes", push("git push origin main") == 0)
-    ok &= check("another session is still blocked", push("git push origin main", session="sess-B") == 2)
-    ok &= check("=repo covers the repo", push("JITTER_PUSH_OK=repo git push", session="sess-B") == 0)
-    ok &= check("a new session in that repo passes", push("git push", session="sess-C") == 0)
-    ok &= check("a different repo is still blocked", push("git push", session="sess-C", cwd=other) == 2)
-
-    for marker in (cache / "jitter-ai-agent" / "push-approvals").glob("*"):
-        marker.unlink()
-    ok &= check("deleting the state file revokes it", push("git push", session="sess-C") == 2)
+    ok &= check("a bare push on master asks", push("git push"))
+    ok &= check("HEAD on master asks", push("git push -u origin HEAD"))
+    git(["switch", "-q", "-c", "feature"], repo)
+    for command in ("git push", "git push -u origin HEAD", "git push origin feature", "git push origin feature:feature"):
+        ok &= check("a feature branch pushes freely: " + command, not push(command))
+    ok &= check("git -C reads the branch of that repo", not push("git -C {} push".format(repo), cwd=tmp))
+    for command, name in [
+        ("git push -f origin feature", "--force"),
+        ("git push --force-with-lease=feature origin feature", "--force-with-lease=..."),
+        ("git push origin +feature", "a + refspec"),
+        ("git push origin :feature", "a : refspec"),
+        ("git push --delete origin feature", "--delete"),
+        ("git push origin HEAD:main", "HEAD onto main"),
+        ("git push origin refs/heads/master", "a full ref to master"),
+        ("git push --tags", "--tags"),
+        ("git push --mirror origin", "--mirror"),
+    ]:
+        ok &= check("a feature branch still asks for " + name, push(command))
+    git(["tag", "v1"], repo)
+    ok &= check("a tag by name asks", push("git push origin v1"))
+    git(["branch", "-q", "-u", "origin/master"], repo)
+    ok &= check("a branch whose upstream is master asks", push("git push"))
+    git(["switch", "-q", "--detach"], repo)
+    ok &= check("a detached HEAD asks", push("git push"))
     return ok
 
 
 def guard_cases(ok):
     for command, name in GUARD_PUSHES:
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
-        ok &= check("guard blocks: " + name, result[0] == 2, result[1])
+        ok &= check("guard asks: " + name, result[0] == 0 and asks(result[1]), result[1])
     for command, name in GUARD_ORDINARY:
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
-        ok &= check("guard allows: " + name, result[0] == 0, result[1])
+        ok &= check("guard allows: " + name, result[0] == 0 and not asks(result[1]), result[1])
 
     # The threshold is a setting, not a rule, so both directions have to work.
     # The candidate expansion used to be quadratic, which cost seconds on an ordinary command.
@@ -595,7 +609,7 @@ def main():
         ok = prose_cases(tmp, ok)
         ok = repo_cases(tmp, ok)
         ok = guard_cases(ok)
-        ok = approval_cases(tmp, ok)
+        ok = branch_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
     ok = typst_package_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))
