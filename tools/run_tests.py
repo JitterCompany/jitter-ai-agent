@@ -586,6 +586,56 @@ def hook_wiring_cases(ok):
     return ok
 
 
+def knowledge_session_cases(tmp, ok):
+    """The hook prompts once, stays quiet after a no, and pulls only a clean clone on a new session."""
+    tmp = tmp / "knowledge"
+    tmp.mkdir()
+    env = dict(os.environ, XDG_CONFIG_HOME=str(tmp / "cfg"), XDG_CACHE_HOME=str(tmp / "cache"))
+
+    def session(source):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "knowledge_session.py")], input=json.dumps({"source": source}),
+            capture_output=True, text=True, env=env, check=False,
+        )
+        return done.returncode, done.stdout
+
+    rc, out = session("startup")
+    ok &= check("knowledge hook offers setup when nothing is configured", rc == 0 and "setup-extras" in out, out)
+    (tmp / "cache" / "jitter-ai-agent").mkdir(parents=True)
+    (tmp / "cache" / "jitter-ai-agent" / "knowledge-declined").write_text("x")
+    rc, out = session("startup")
+    ok &= check("knowledge hook is silent after a no", rc == 0 and not out.strip(), out)
+
+    config = tmp / "cfg" / "jitter-knowledge" / "path"
+    config.parent.mkdir(parents=True)
+    config.write_text(str(tmp / "nowhere") + "\n")
+    rc, out = session("startup")
+    ok &= check("knowledge hook flags a path without a clone", rc == 0 and "no knowledge base clone" in out, out)
+
+    upstream, clone = tmp / "upstream", tmp / "clone"
+    git(["init", "-q", "-b", "master", str(upstream)], tmp)
+    (upstream / "knowledge").mkdir()
+    (upstream / "knowledge" / "index.md").write_text("one\n")
+    for args in (["add", "."], ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "one"]):
+        git(args, upstream)
+    git(["clone", "-q", str(upstream), str(clone)], tmp)
+    config.write_text(str(clone) + "\n")
+
+    (upstream / "knowledge" / "index.md").write_text("two\n")
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qam", "two"], upstream)
+    rc, out = session("resume")
+    pulled = (clone / "knowledge" / "index.md").read_text() == "two\n"
+    ok &= check("knowledge hook does not pull on resume", "JITTER_KNOWLEDGE=" in out and not pulled, out)
+    rc, out = session("startup")
+    pulled = (clone / "knowledge" / "index.md").read_text() == "two\n"
+    ok &= check("knowledge hook pulls a clean clone on startup", pulled and "Not updated" not in out, out)
+
+    (clone / "knowledge" / "draft.md").write_text("wip\n")
+    rc, out = session("startup")
+    ok &= check("knowledge hook leaves a dirty clone alone", rc == 0 and "uncommitted changes" in out, out)
+    return ok
+
+
 def main():
     ok = True
     with tempfile.TemporaryDirectory() as tmp:
@@ -596,6 +646,7 @@ def main():
         ok = repo_cases(tmp, ok)
         ok = guard_cases(ok)
         ok = approval_cases(tmp, ok)
+        ok = knowledge_session_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
     ok = typst_package_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))

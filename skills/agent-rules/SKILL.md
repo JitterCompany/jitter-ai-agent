@@ -9,7 +9,7 @@ The rules loaded in this session come from `JitterCompany/jitter-ai-agent`. This
 
 ## A. New or changed rule
 
-1. **Check the scope.** Company-wide goes in this repo. One project goes in that repo's `CLAUDE.md`. One machine or one person's taste goes in their personal memory or `~/.claude/CLAUDE.md`. Ask which of the three when it is not obvious.
+1. **Check the scope.** Company-wide goes in this repo. One project goes in that repo's `CLAUDE.md`. One machine or one person's taste goes in their personal memory or `~/.claude/CLAUDE.md`. Ask which of the three when it is not obvious. A fact rather than a way of working, such as a chip erratum or a customer's setup, belongs in the knowledge base: use the `knowledge` skill.
 2. **Write it.** One imperative sentence with the why in a clause. Add a bad-to-good pair when it is about code. Give it the next free id in its section (R, W, C in `core.md`).
 3. **Pick the file:**
    - `rules/core.md` if it is short, universal and worth loading into every session. This file is injected at every session start, so it stays near 45 lines. Adding a line usually means shortening another.

@@ -18,6 +18,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
 | `tools/layout_check.py` | R7, the `mod.rs` files |
 | `tools/guard_push.py` | Enforces W2: the agent cannot push or open a PR without approval |
+| `tools/knowledge_session.py` | Session hook: names the knowledge base clone and pulls it |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
 | `typst/jitter-report/` | The house style for engineering reports, as a local Typst package |
@@ -118,6 +119,12 @@ It is still a check on the tools, not on your repo. A real change to a tool want
 4. Say why in the PR. A rule without a reason gets argued about again in six months.
 
 In a session, just say "new company-wide rule" or "remember this across all projects". The `agent-rules` skill writes it, branches, and asks before pushing. The same skill handles the other direction: when a rule caused something unwanted, it records the exception at the level you pick (once, this project, you, everybody).
+
+## Knowledge base
+
+Facts live in a second private repo, [JitterCompany/jitter-knowledge](https://github.com/JitterCompany/jitter-knowledge): parts and their errata, tools, protocols, procedures, lessons, customer setups. Rules say how we work, the knowledge base says what we know.
+
+The first session offers to clone it and writes the path to `~/.config/jitter-knowledge/path`. After that, every new session pulls it, as long as the clone is clean and on master. The `knowledge` skill looks things up and files new entries as a PR. CI adds the reviewers to `verified` on merge, so agents can tell a reviewed entry from an unreviewed one.
 
 ## Scope
 

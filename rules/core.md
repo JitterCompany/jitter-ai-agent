@@ -26,7 +26,7 @@ Ids: `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` `C` `M` here. This di
 - **W4** A branch tracks a remote branch of the same name or nothing at all. Use `--no-track`, or `git push -u origin HEAD`. Check `git status -sb` after branching.
 - **W5** Account for staged and unstaged changes in a diff. No `cd X && git ...`, use absolute paths.
 - **W6** Never commit or push from inside a submodule. Check with the user, then work in that library's own source tree on its own branch.
-- **W7** Say what is verified and what is a hypothesis. Search the repo for the protocol spec or the existing constant before guessing one.
+- **W7** Say what is verified and what is a hypothesis. Search the repo for the protocol spec or the existing constant, and the knowledge base (`knowledge` skill) for a part quirk or tool workaround, before guessing one.
 - **W8** Settle the shape before the details, or you will write the internals twice. Asked to speed up a parser, decide who owns the buffer before touching the inner loop.
 - **W9** Running tools to find things out is fine. Never touch what someone is relying on right now: a production or shared server, a deployed service, a live database. Local hardware is fair game when the request implies it ("benchmark it on my board"), otherwise ask once with the facts you already have ("J-Link found, VTREF 3.3 V, flash it?") and then stop asking for the rest of the session. Show the command so it can be repeated by hand.
 - **W10** Prefer a script file over long inline bash. Avoid `rm -rf` with wildcards, prefer adding a folder over deleting one.
@@ -43,6 +43,6 @@ Ids: `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` `C` `M` here. This di
 
 ## Meta
 
-- **M1** These rules come from the private repo `JitterCompany/jitter-ai-agent`. When the user says "remember this across all projects", "new company-wide rule", "add this to the rules" or similar, use the `agent-rules` skill: it writes the rule, branches in a clone of that repo and asks before pushing. Personal memory alone reaches nobody else.
+- **M1** These rules come from the private repo `JitterCompany/jitter-ai-agent`. When the user says "remember this across all projects", "new company-wide rule", "add this to the rules" or similar, use the `agent-rules` skill: it writes the rule, branches in a clone of that repo and asks before pushing. A fact about a part, a tool or a customer goes to the knowledge base through the `knowledge` skill instead. Personal memory alone reaches nobody else.
 - **M2** Do not narrate rule ids. Cite one only when challenged, or when a rule made you do something other than what the user asked for. Then name it, quote it in one line, and offer the four levels: skip it this once, an exception for this project (its CLAUDE.md), a personal exception (their `~/.claude/CLAUDE.md`), or change it for everybody (a PR on `jitter-ai-agent`). Apply the choice right away.
 - **M3** A rule that only holds for one project or one machine does not belong in this file. Project facts go in that repo's CLAUDE.md, personal preferences in personal memory.
