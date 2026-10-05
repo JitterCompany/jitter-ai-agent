@@ -1,6 +1,6 @@
 ---
 name: fix-kicad-paths
-description: Rewrite absolute /home/... paths in KiCad files (often Sim.Library) into ${KIPRJMOD}-relative ones. Use when a commit is blocked by the path check, or before committing KiCad files.
+description: Rewrite absolute /home/<user> paths in KiCad files (often Sim.Library) into ${KIPRJMOD}-relative ones. Use when a commit is blocked by the path check, or before committing KiCad files.
 ---
 
 # Fix hardcoded paths in KiCad files
