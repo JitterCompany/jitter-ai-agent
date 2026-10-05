@@ -9,11 +9,14 @@ A private repo of markdown files with YAML frontmatter, in the Open Knowledge Fo
 
 The conventions live in the repo's own `README.md`, under "Writing an entry". Read that before writing an entry. This skill does not repeat them.
 
-## Knowledge or rule?
+## Knowledge, skill or rule?
 
 - A fact about the world goes here: "the STM32L4 I2C misses a STOP after a NACK", "this customer's test jig needs 12 V".
-- How we work goes in the rules, through the `agent-rules` skill: "never push without asking".
+- A procedure people carry out goes here too, as `type: Procedure`: salary administration, a board bring-up.
+- A procedure an agent carries out is a skill, and a constraint on how we work is a rule. Both go through the `agent-rules` skill.
 - A fact about one repo goes in that repo's `CLAUDE.md`.
+
+The full table is in the jitter-ai-agent README, under "Skill, knowledge or rule?".
 
 ## 1. Look something up
 

@@ -126,6 +126,20 @@ Facts live in a second private repo, [JitterCompany/jitter-knowledge](https://gi
 
 The first session offers to clone it and writes the path to `~/.config/jitter-knowledge/path`. After that, every new session pulls it, as long as the clone is clean and on master. The `knowledge` skill looks things up and files new entries as a PR. CI adds the reviewers to `verified` on merge, so agents can tell a reviewed entry from an unreviewed one.
 
+### Skill, knowledge or rule?
+
+| What | Where | Example |
+|---|---|---|
+| A constraint on how we work | A rule in `jitter-ai-agent/rules/` | Never push to master without a yes |
+| A procedure an agent carries out | A skill in `jitter-ai-agent/skills/` | Flash a board without NRST, set up the hardware CI |
+| A procedure people carry out | The knowledge base, `type: Procedure` | Salary administration, bring-up of one board revision |
+| A fact about a part, tool, protocol or customer | The knowledge base | The STM32L4 I2C misses a STOP after a NACK |
+| A fact about one repo | That repo's `CLAUDE.md` | Its build command, its pin assignments |
+
+A skill and a procedure both have steps. The difference is who carries it out. A skill's description loads into every colleague's agent session so the agent can trigger it, which costs everyone context and hides it from people. A procedure that only people follow belongs in the knowledge base. Write it like a skill anyway: when to use it, the steps, how to check it worked. When an agent takes over part of it, that part becomes a skill and links back to the entry.
+
+A skill that leans on facts, such as the measured side effects of a debug probe, should link to a knowledge entry for them rather than hold them, so a person working by hand finds them too.
+
 ## Scope
 
 Company-wide conventions live here. Project facts (architecture, build commands, hardware quirks) stay in that repo's own `CLAUDE.md`. Personal preferences and machine specifics stay personal.
