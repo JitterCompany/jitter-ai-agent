@@ -21,7 +21,7 @@ Ids: `R` rust-style.md, `P` prose.md, `H` hardware.md, `W` `C` `M` here. This di
 ## Working
 
 - **W1** `cargo +nightly fmt --all` before committing.
-- **W2** Never `git push` or open a PR until that specific push is approved. Committing locally is fine.
+- **W2** Pushing a feature branch is fine. Pushing to master or main, force pushing, deleting a branch, pushing a tag, and opening or merging a PR need the user's yes for that one action. The push guard asks through Claude Code's own prompt, so do not ask in chat as well.
 - **W3** Compact commit messages, few commits, never `git add -A`.
 - **W4** A branch tracks a remote branch of the same name or nothing at all. Use `--no-track`, or `git push -u origin HEAD`. Check `git status -sb` after branching.
 - **W5** Account for staged and unstaged changes in a diff. No `cd X && git ...`, use absolute paths.
