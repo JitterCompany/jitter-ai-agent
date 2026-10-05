@@ -117,6 +117,7 @@ It is still a check on the tools, not on your repo. A real change to a tool want
 2. `rules/core.md` is loaded in every session, so it stays short. Adding a line there usually means removing one, or leaving the rule in its home file only.
 3. Prefer a check over a sentence. A clippy lint or a pattern in `comment_lint.py` lands in the agent's context exactly when it matters, and never gets summarized away. Tune it against a real repo first, `run_tests.py` covers the regressions.
 4. Say why in the PR. A rule without a reason gets argued about again in six months.
+5. Bump `version` in `.claude-plugin/plugin.json` and both places in `.claude-plugin/marketplace.json`. Claude Code caches the plugin by version, so a change merged without a bump reaches nobody, not even after `/plugin marketplace update`.
 
 In a session, just say "new company-wide rule" or "remember this across all projects". The `agent-rules` skill writes it, branches, and asks before pushing. The same skill handles the other direction: when a rule caused something unwanted, it records the exception at the level you pick (once, this project, you, everybody).
 
