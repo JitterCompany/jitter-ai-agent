@@ -17,7 +17,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
 | `tools/layout_check.py` | R7, the `mod.rs` files |
-| `tools/guard_push.py` | Enforces W2: the agent cannot push or open a PR without approval |
+| `tools/guard_push.py` | Enforces W2: a push to master, a force push, a tag or a PR brings up an approval prompt |
 | `tools/knowledge_session.py` | Session hook: names the knowledge base clone and pulls it |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
@@ -103,7 +103,7 @@ Two checks are sweep-only, because measurement said so. A long comment run (R3) 
 
 The push guard is a reminder, not a security control. An agent determined to get around it can, for example by writing a script. It exists to catch the agent that forgets.
 
-The one thing the agent is stopped from doing outright is pushing (W2), because that is the only rule here whose violation cannot be undone.
+It is the one rule enforced at the moment of action (W2), because publishing is the one thing here that cannot be undone. A feature branch pushes freely, since a PR review stands between it and master. A push to master or main, a force push, a delete, a tag, and opening or merging a PR make the guard answer "ask", so Claude Code shows its own approval prompt. Approval is a click by the user, not a flag the agent sets. The Claude Code docs promise that prompt in the default permission mode only. What "ask" does in auto mode and with permissions bypassed is not documented, so check it there before relying on it.
 
 ## What the self-tests are, and are not
 

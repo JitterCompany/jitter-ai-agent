@@ -20,7 +20,7 @@ The rules loaded in this session come from `JitterCompany/jitter-ai-agent`. This
 4. **Check for a duplicate.** Grep the repo and update the existing line instead of adding a near-copy.
 5. **Prefer a check over a sentence.** If a script can catch it, add it to `tools/comment_lint.py`, `tools/path_leak_check.py`, `tools/kicad_project_check.py`, or as a clippy lint in `templates/workspace-lints.toml`. A check lands in context exactly when it matters and never gets summarized away. Tune it against a real repo and report the hit count before committing it.
 6. **Branch and commit.** One rule per branch, named `rule/<short-slug>`. The commit message says what the rule is and why it exists.
-7. **Ask before pushing** (W2). Then open the PR and give the user the link.
+7. **Push the branch and open the PR.** Opening it brings up an approval prompt (W2). Give the user the link.
 
 ## B. Override a rule
 
