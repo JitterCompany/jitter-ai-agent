@@ -11,7 +11,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    sys.exit("ci_local.py needs PyYAML: pip3 install --user pyyaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 

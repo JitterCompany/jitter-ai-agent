@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
-"""Stop the agent from committing a local path or personal data (C3).
+"""Run the commit-time checks on the agent's commits, the same way the shared git hook does.
 
 Wired as a PreToolUse hook on Bash, next to guard_push.py. Reads the hook JSON on stdin.
-When a command runs `git commit`, it scans the lines that commit adds with the same rules
-as path_leak_check.py, and denies the command on a finding. Everything else passes untouched.
+When a command runs `git commit`, it calls every `tools/precommit/*.py --staged`, exactly as
+git_utils/scripts/pre-commit does, and denies the command when one fails. It has no checks
+of its own, so a person with the git hook and an agent without it get the same answer.
 
-It runs whether or not the repo has a pre-commit hook. The shared hook is optional and often
-missing, which is exactly when an agent leaks a path into a repo that has no CI to catch it.
-Only added lines count, so an old leak in a file the commit touches does not block it.
+For `commit -a` or a pathspec, the scripts see a temporary index with those changes staged,
+which is what git would commit. Everything else passes untouched.
 
 A human committing from their own terminal is unaffected: this only sees the agent's Bash calls.
 """
 
 import json
 import os
-import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+CHECKS = Path(__file__).resolve().parent / "precommit"
+sys.path.insert(0, str(CHECKS.parent))
 
-import path_leak_check  # noqa: E402
 from guard_push import (  # noqa: E402
     DRY_RUN, GIT_FLAG, GIT_OPTION_WITH_VALUE, HELP, RUNS_A_STRING, WRAPPERS, segments, strip_prefix, words,
 )
@@ -91,32 +92,23 @@ def takes_unstaged(args):
     return False
 
 
-def added_lines(repo, *diff_args):
-    """{file: added text} for one `git diff`, skipping what path_leak_check skips."""
-    done = subprocess.run(["git", "-C", repo, "diff", "-U0", "--no-color", "--diff-filter=ACMR", *diff_args],
-                          capture_output=True, text=True, errors="replace", check=False)
-    added, current = {}, None
-    for line in done.stdout.splitlines():
-        if line.startswith("+++ "):
-            name = line[4:].removeprefix("b/")
-            skipped = (Path(name).suffix.lower() in path_leak_check.SKIP_SUFFIXES
-                       or any(part in path_leak_check.SKIP_DIRS for part in Path(name).parts))
-            current = None if name == "/dev/null" or skipped else name
-        elif current and line.startswith("+") and not line.startswith("+++"):
-            added.setdefault(current, []).append(line[1:])
-    return {name: "\n".join(lines) + "\n" for name, lines in added.items()}
-
-
-def findings_for(repo, args):
-    texts = added_lines(repo, "--cached")
-    if takes_unstaged(args):
-        for name, text in added_lines(repo).items():
-            texts[name] = texts.get(name, "") + text
-    found = []
-    for name, text in texts.items():
-        # scan_text numbers lines within the added text only, which would mislead.
-        found += [re.sub(r"^(.*?):\d+: ", r"\1: ", f) for f in path_leak_check.scan_text(text, name)]
-    return found
+def run_checks(repo, args):
+    """stderr of every failing check, or "" when the commit may go ahead."""
+    env = dict(os.environ)
+    with tempfile.TemporaryDirectory() as tmp:
+        if takes_unstaged(args):
+            index = subprocess.run(["git", "-C", repo, "rev-parse", "--git-path", "index"],
+                                   capture_output=True, text=True, check=False).stdout.strip()
+            env["GIT_INDEX_FILE"] = os.path.join(tmp, "index")
+            shutil.copyfile(os.path.join(repo, index), env["GIT_INDEX_FILE"])
+            subprocess.run(["git", "-C", repo, "add", "-u"], env=env, capture_output=True, check=False)
+        failed = []
+        for script in sorted(CHECKS.glob("*.py")):
+            done = subprocess.run([sys.executable, str(script), "--staged"], cwd=repo, env=env,
+                                  capture_output=True, text=True, check=False)
+            if done.returncode:
+                failed.append((done.stderr or done.stdout).strip())
+    return "\n".join(failed)
 
 
 def main():
@@ -131,17 +123,12 @@ def main():
         target = commit_in(words(segment), cwd)
         if not target:
             continue
-        found = findings_for(*target)
-        if found:
-            listed = "\n".join(str(f) for f in found[:10])
+        failed = run_checks(*target)
+        if failed:
             json.dump({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": (
-                    "C3: this commit adds local paths or personal data:\n" + listed + "\n"
-                    "Replace them with ${KIPRJMOD}, $HOME, a relative path or a placeholder such as "
-                    "/home/<user>, then commit again."
-                ),
+                "permissionDecisionReason": "The commit-time checks failed:\n" + failed,
             }}, sys.stdout)
             return 0
     return 0

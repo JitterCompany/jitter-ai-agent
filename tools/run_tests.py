@@ -662,7 +662,7 @@ def denies(output):
 
 
 def commit_guard_cases(tmp, ok):
-    """The agent's commits are scanned for leaks in what they add, with or without a pre-commit hook."""
+    """The agent's commits run tools/precommit/*.py --staged, the same scripts the git hook runs."""
     repo = tmp / "commit-guard"
     home = "/{}".format("home")  # built at runtime, so this file passes its own check
     git(["init", "-q", "-b", "master", str(repo)], tmp)
@@ -696,9 +696,12 @@ def commit_guard_cases(tmp, ok):
     (repo / "old.txt").write_text("legacy = " + home + "/alice/old\nnew line\n")
     git(["add", "old.txt"], repo)
     rc, out = commit("git commit -m x")
-    ok &= check("commit guard does not block on an old leak the commit did not add", rc == 0 and not denies(out), out)
+    ok &= check("commit guard blocks an old leak in a touched file, same as the git hook", rc == 0 and denies(out), out)
 
-    (repo / "old.txt").write_text("legacy = " + home + "/alice/old\nnew line\nmore = " + home + "/carol/x\n")
+    (repo / "old.txt").write_text("clean\n")
+    git(["add", "old.txt"], repo)
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "clean"], repo)
+    (repo / "old.txt").write_text("clean\nmore = " + home + "/carol/x\n")
     rc, out = commit("git commit -m x")
     ok &= check("commit guard skips unstaged changes on a plain commit", rc == 0 and not denies(out), out)
     rc, out = commit("git commit -am x")

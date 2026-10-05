@@ -6,6 +6,15 @@
 # Login stays in ~/.claude, so no new sign-in is needed.
 set -eu
 
+# GIT_CONFIG_GLOBAL needs git 2.32. Older git ignores it and the test would write the real config.
+git_version=$(git --version | sed 's/[^0-9.]*\([0-9]*\)\.\([0-9]*\).*/\1 \2/')
+set -- $git_version "$@"
+if [ "$1" -lt 2 ] || { [ "$1" -eq 2 ] && [ "$2" -lt 32 ]; }; then
+  echo "agent_sandbox.sh needs git 2.32 or newer to isolate the global git config, found $(git --version)" >&2
+  exit 1
+fi
+shift 2
+
 SANDBOX=$(mktemp -d "${TMPDIR:-/tmp}/agent-sandbox.XXXXXX")
 trap 'rm -rf "$SANDBOX"' EXIT
 mkdir -p "$SANDBOX/cache" "$SANDBOX/config" "$SANDBOX/data"
