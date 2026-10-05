@@ -9,18 +9,19 @@ The rules loaded in this session come from `JitterCompany/jitter-ai-agent`. This
 
 ## A. New or changed rule
 
-1. **Check the scope.** Company-wide goes in this repo. One project goes in that repo's `CLAUDE.md`. One machine or one person's taste goes in their personal memory or `~/.claude/CLAUDE.md`. Ask which of the three when it is not obvious.
+1. **Check the scope.** Company-wide goes in this repo. One project goes in that repo's `CLAUDE.md`. One machine or one person's taste goes in their personal memory or `~/.claude/CLAUDE.md`. Ask which of the three when it is not obvious. A fact rather than a way of working, such as a chip erratum or a customer's setup, belongs in the knowledge base: use the `knowledge` skill.
 2. **Write it.** One imperative sentence with the why in a clause. Add a bad-to-good pair when it is about code. Give it the next free id in its section (R, W, C in `core.md`).
 3. **Pick the file:**
    - `rules/core.md` if it is short, universal and worth loading into every session. This file is injected at every session start, so it stays near 45 lines. Adding a line usually means shortening another.
    - `rules/rust-style.md` for Rust detail and examples.
    - `rules/prose.md` for writing style.
    - `rules/hardware.md` for KiCad, PCB and lab.
-   - A new `skills/<name>/SKILL.md` when it is a procedure rather than a rule, for example a repeatable task with steps and verification.
+   - A new `skills/<name>/SKILL.md` when it is a procedure an agent carries out, for example a repeatable task with steps and verification. A procedure only people follow goes in the knowledge base instead, through the `knowledge` skill.
 4. **Check for a duplicate.** Grep the repo and update the existing line instead of adding a near-copy.
 5. **Prefer a check over a sentence.** If a script can catch it, add it to `tools/comment_lint.py`, `tools/path_leak_check.py`, `tools/kicad_project_check.py`, or as a clippy lint in `templates/workspace-lints.toml`. A check lands in context exactly when it matters and never gets summarized away. Tune it against a real repo and report the hit count before committing it.
-6. **Branch and commit.** One rule per branch, named `rule/<short-slug>`. The commit message says what the rule is and why it exists.
-7. **Push the branch and open the PR.** Opening it brings up an approval prompt (W2). Give the user the link.
+6. **Bump the plugin version** in `.claude-plugin/plugin.json` and `marketplace.json`, or the change never reaches anyone's cached copy.
+7. **Branch and commit.** One rule per branch, named `rule/<short-slug>`. The commit message says what the rule is and why it exists.
+8. **Push the branch and open the PR.** Opening it brings up an approval prompt (W2). Give the user the link.
 
 ## B. Override a rule
 

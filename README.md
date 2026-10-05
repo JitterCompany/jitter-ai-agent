@@ -18,6 +18,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
 | `tools/layout_check.py` | R7, the `mod.rs` files |
 | `tools/guard_push.py` | Enforces W2: a push to master, a force push, a tag or a PR brings up an approval prompt |
+| `tools/knowledge_session.py` | Session hook: names the knowledge base clone and pulls it |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
 | `typst/jitter-report/` | The house style for engineering reports, as a local Typst package |
@@ -116,8 +117,29 @@ It is still a check on the tools, not on your repo. A real change to a tool want
 2. `rules/core.md` is loaded in every session, so it stays short. Adding a line there usually means removing one, or leaving the rule in its home file only.
 3. Prefer a check over a sentence. A clippy lint or a pattern in `comment_lint.py` lands in the agent's context exactly when it matters, and never gets summarized away. Tune it against a real repo first, `run_tests.py` covers the regressions.
 4. Say why in the PR. A rule without a reason gets argued about again in six months.
+5. Bump `version` in `.claude-plugin/plugin.json` and both places in `.claude-plugin/marketplace.json`. Claude Code caches the plugin by version, so a change merged without a bump reaches nobody, not even after `/plugin marketplace update`.
 
 In a session, just say "new company-wide rule" or "remember this across all projects". The `agent-rules` skill writes it, branches, and asks before pushing. The same skill handles the other direction: when a rule caused something unwanted, it records the exception at the level you pick (once, this project, you, everybody).
+
+## Knowledge base
+
+Facts live in a second private repo, [JitterCompany/jitter-knowledge](https://github.com/JitterCompany/jitter-knowledge): parts and their errata, tools, protocols, procedures, lessons, customer setups. Rules say how we work, the knowledge base says what we know.
+
+The first session offers to clone it and writes the path to `~/.config/jitter-knowledge/path`. After that, every new session pulls it, as long as the clone is clean and on master. The `knowledge` skill looks things up and files new entries as a PR. CI adds the reviewers to `verified` on merge, so agents can tell a reviewed entry from an unreviewed one.
+
+### Skill, knowledge or rule?
+
+| What | Where | Example |
+|---|---|---|
+| A constraint on how we work | A rule in `jitter-ai-agent/rules/` | Never push to master without a yes |
+| A procedure an agent carries out | A skill in `jitter-ai-agent/skills/` | Flash a board without NRST, set up the hardware CI |
+| A procedure people carry out | The knowledge base, `type: Procedure` | Salary administration, bring-up of one board revision |
+| A fact about a part, tool, protocol or customer | The knowledge base | The STM32L4 I2C misses a STOP after a NACK |
+| A fact about one repo | That repo's `CLAUDE.md` | Its build command, its pin assignments |
+
+A skill and a procedure both have steps. The difference is who carries it out. A skill's description loads into every colleague's agent session so the agent can trigger it, which costs everyone context and hides it from people. A procedure that only people follow belongs in the knowledge base. Write it like a skill anyway: when to use it, the steps, how to check it worked. When an agent takes over part of it, that part becomes a skill and links back to the entry.
+
+A skill that leans on facts, such as the measured side effects of a debug probe, should link to a knowledge entry for them rather than hold them, so a person working by hand finds them too.
 
 ## Scope
 
