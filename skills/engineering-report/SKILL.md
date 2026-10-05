@@ -1,6 +1,6 @@
 ---
 name: engineering-report
-description: Write a Jitter engineering report as a PDF with Typst: board bring-up, a test or measurement report, a simulation report, an EMC or insertion-loss write-up. Use when asked to document results, write up measurements or a simulation, produce a test report, or turn bench or scope data into something a customer reads.
+description: Write an engineering report PDF with Typst: bring-up, test, measurement, simulation, EMC or insertion-loss results. Use when asked to document results or turn bench or scope data into a report.
 ---
 
 # Engineering reports
