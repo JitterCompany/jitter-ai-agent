@@ -1,6 +1,6 @@
 ---
 name: engineering-report
-description: Write a Jitter engineering report as a PDF with Typst: board bring-up, a test or measurement report, a simulation report, an EMC or insertion-loss write-up. Use when asked to document results, write up measurements or a simulation, produce a test report, or turn bench or scope data into something a customer reads.
+description: Write an engineering report PDF with Typst: bring-up, test, measurement, simulation, EMC or insertion-loss results. Use when asked to document results or turn bench or scope data into a report.
 ---
 
 # Engineering reports
@@ -69,7 +69,7 @@ Read the PDF before handing it over. Then check the page breaks: a `restable` is
 
 Two traps on our machines:
 
-- Typst from snap cannot read `/tmp` or another user's home. Build inside the repo.
+- Typst from snap cannot read `/tmp` or files owned by another user. Build inside the repo, or use the static binary from the typst GitHub releases.
 - If Helvetica is missing the fallback chain handles it. The warning is not an error.
 
 ## Where it lives, and going public

@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Jitter coding conventions and shared tooling for AI coding agents",
-    "version": "0.2.0"
+    "version": "0.2.2"
   },
   "plugins": [
     {
       "name": "jitter",
       "source": "./",
       "description": "Jitter house rules: Rust style, working conventions, comment-bloat and path-leak checks, KiCad skills",
-      "version": "0.2.0",
+      "version": "0.2.2",
       "category": "development"
     }
   ]

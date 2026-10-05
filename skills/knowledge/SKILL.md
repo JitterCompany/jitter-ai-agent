@@ -1,6 +1,6 @@
 ---
 name: knowledge
-description: Look things up in, and add to, the shared Jitter knowledge base (JitterCompany/jitter-knowledge) - parts and their errata, debug tools, protocols, RF, procedures, lessons learned, and per-customer setups. Use before guessing a chip quirk, a tool workaround, a protocol detail or how a customer's setup works, when starting on a customer's project, and when the user says "add this to the knowledge base", "remember this for everyone" about a fact, or "what do we know about X".
+description: Look up and add to the shared Jitter knowledge base: parts and errata, tools, protocols, RF, procedures, lessons, customer setups. Use before guessing a quirk or workaround, and for "what do we know about X".
 ---
 
 # The shared knowledge base
@@ -56,3 +56,7 @@ The logboek is the journal on the office NAS, reachable only from the office net
 2. Write one concept per fact that still holds. Leave out the diary: dates, dead ends, "update 13:00".
 3. Cite each log as `logboek:<file name without .md>` and copy `project` across.
 4. Put the whole theme in one PR, so one reviewer sees it together.
+
+## 4. Export an entry to PDF
+
+`scripts/pdf.sh knowledge/<folder>/<entry>.md [out.pdf]` in the clone renders one entry with the Jitter cover and header, screenshots included. It needs `typst` and the `offerte` repo cloned next to `jitter-knowledge`. The `jitter-pdf` skill has the traps.

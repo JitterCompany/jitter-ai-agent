@@ -1,6 +1,6 @@
 ---
 name: setup-extras
-description: Offer a colleague the optional parts of the Jitter agent setup the first time they use it: the commit-time checks, the shared git hook and a clone of the shared knowledge base. Use when the session says this person has not been offered the extras or has no knowledge base set up, when someone asks how to finish setting this up, or when a commit-time check turns out not to be installed.
+description: Offer a colleague the optional Jitter setup once: commit-time checks, the shared git hook, a knowledge base clone. Use when the session says the extras were not offered or the knowledge base is missing.
 ---
 
 # Finish setting someone up

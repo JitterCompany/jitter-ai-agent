@@ -1,11 +1,11 @@
 ---
 name: jitter-pdf
-description: Write an offerte, or any Jitter-branded PDF such as a test report or a customer-facing document, using the Typst system in the JitterCompany/offerte repo. Use when asked for a quote, an offerte or a proposal, and whenever a document needs the Jitter cover, logo, colours or house typography rather than plain markdown.
+description: Make any PDF with Typst and the Jitter brand - offertes, quotes, proposals, guides, and markdown or knowledge entries exported to PDF. Prefer it over pandoc or WeasyPrint unless asked.
 ---
 
 # Jitter documents
 
-Everything lives in `JitterCompany/offerte`, usually cloned at `~/dev/jitter/offerte`. It serves two jobs: it produces the offertes, and it is the only place that holds the brand in a usable form.
+Everything lives in `JitterCompany/offerte`, usually cloned at `~/dev/jitter/offerte` or `~/dev/self/offerte`. Look under `~/dev` before cloning it. It serves two jobs: it produces the offertes, and it is the only place that holds the brand in a usable form.
 
 Needs `typst` on `PATH`. Check with `typst --version` and say so if it is missing rather than falling back to something else.
 
@@ -45,11 +45,28 @@ typst compile report.typ report.pdf --root ~/dev/jitter/offerte
 
 Keep the document's own content in its own repo, next to the work it describes, and pull only the brand from here. A test report belongs with the hardware or firmware it tests.
 
+## Markdown to PDF
+
+Render the markdown inside Typst with the `@preview/cmarker` package, so the `.md` stays the only copy of the content and the brand comes from `offerte`:
+
+```typst
+#import "@preview/cmarker:0.1.8"
+#cmarker.render(read("guide.md"), scope: (image: (path, alt: none) => image(path, alt: alt, width: 70%)))
+```
+
+Strip YAML frontmatter before rendering, it is not markdown. For a knowledge entry this is done already: `scripts/pdf.sh <entry.md>` in `jitter-knowledge`.
+
+## Traps
+
+- "access denied" on a file you can read: the snap build of Typst is sandboxed (no `/tmp`, no files owned by another user). Build inside the repo, or use the static binary from the typst GitHub releases.
+- `--root` must contain every file the document reads. Resolve symlinks with `realpath` first, or a path through a symlinked folder lands outside the root.
+- Helvetica is missing on most Linux machines. Add `"Liberation Sans"` as the last font in the stack, it has the same metrics.
+
 ## Which route for which document
 
-Everything is Typst. There is no pandoc or WeasyPrint route any more.
+Prefer Typst. Use pandoc or WeasyPrint only when the user asks for it or the context calls for it, for example a quick unbranded conversion in a repo that already builds that way.
 
-- **This skill:** offertes, and any one-off branded document.
+- **This skill:** offertes, any one-off branded document, and markdown exported to PDF.
 - **The `engineering-report` skill:** a bring-up, test, measurement or simulation report. It uses the `jitter-report` package, which carries the same brand plus the report furniture (cover, header, footer, verdict pills, results tables).
 
 The prose rules apply with full force here (P1 to P6), because this is the writing a customer reads.

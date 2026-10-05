@@ -1,6 +1,6 @@
 ---
 name: rust-style
-description: The Jitter Rust style guide, with bad-to-good examples for comments, C-isms, macros, module layout and interface design. Use when writing or refactoring Rust in a Jitter repo, when a rewrite is about to touch many files, when comments or doc blocks are growing, or when the user asks what the house style says.
+description: The Jitter Rust style guide with bad-to-good examples - comments, C-isms, macros, module layout, interfaces. Load it before writing or refactoring Rust, even a small change.
 ---
 
 # Jitter Rust style
