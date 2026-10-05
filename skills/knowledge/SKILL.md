@@ -46,7 +46,7 @@ Write only when asked. When a session turns up a non-obvious fact that cost real
    ```sh
    cd "$JITTER_KNOWLEDGE" && python3 scripts/build_index.py && python3 scripts/check.py
    ```
-6. **Commit** the concept and the index files it changed, by name. Then ask before pushing, and open a PR once the user says yes. Give the user the link. Someone else reviewing it is what makes it trusted.
+6. **Commit** the concept and the index files it changed, by name. Push the branch and open a PR, which brings up an approval prompt (W2). Give the user the link. Someone else reviewing it is what makes it trusted.
 
 ## 3. Distill the logboek
 
