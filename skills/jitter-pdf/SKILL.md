@@ -1,6 +1,6 @@
 ---
 name: jitter-pdf
-description: Make a PDF with Typst and the Jitter brand from the JitterCompany/offerte repo - an offerte, a customer-facing document, an internal guide, or a markdown file or knowledge entry exported to PDF. Use when asked for a quote, an offerte or a proposal, to export or convert anything to PDF, and whenever a document needs the Jitter cover, logo, colours or house typography. Prefer this over pandoc or WeasyPrint unless the user asks for those.
+description: Make any PDF with Typst and the Jitter brand - offertes, quotes, proposals, guides, and markdown or knowledge entries exported to PDF. Prefer it over pandoc or WeasyPrint unless asked.
 ---
 
 # Jitter documents
