@@ -69,7 +69,7 @@ Read the PDF before handing it over. Then check the page breaks: a `restable` is
 
 Two traps on our machines:
 
-- Typst from snap cannot read `/tmp` or another user's home. Build inside the repo.
+- Typst from snap cannot read `/tmp` or files owned by another user. Build inside the repo, or use the static binary from the typst GitHub releases.
 - If Helvetica is missing the fallback chain handles it. The warning is not an error.
 
 ## Where it lives, and going public
