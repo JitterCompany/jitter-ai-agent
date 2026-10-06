@@ -18,7 +18,7 @@ from pathlib import Path
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "jitter-knowledge" / "path"
 DECLINED = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "jitter-ai-agent" / "knowledge-declined"
 BRANCH = "master"
-SETUP = "Offer it once with the setup-extras skill, section 3."
+SETUP = "Ask once in your first reply, with the setup-extras skill, section 3."
 
 
 def git(clone, *args, timeout=10):
@@ -28,6 +28,17 @@ def git(clone, *args, timeout=10):
     return subprocess.run(
         ["git", "-C", str(clone), *args], capture_output=True, text=True, timeout=timeout, env=env, check=False,
     )
+
+
+def find_clone():
+    """A clone in the usual places, for a person who has one but never recorded it."""
+    deep = ["jitter-knowledge", "*/jitter-knowledge", "*/*/jitter-knowledge"]
+    for root, patterns in ((Path.home() / "dev", deep), (Path.home(), deep[:2])):
+        for pattern in patterns:
+            for candidate in sorted(root.glob(pattern)):
+                if (candidate / "knowledge" / "index.md").is_file():
+                    return candidate
+    return None
 
 
 def pull(clone):
@@ -53,7 +64,11 @@ def main():
     text = CONFIG.read_text(encoding="utf-8") if CONFIG.is_file() else ""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
-        if not DECLINED.exists():
+        found = find_clone()
+        if found:
+            print(f"A knowledge base clone exists at {found}, but {CONFIG} does not name it. "
+                  f"Ask once in your first reply whether to record it there (setup-extras, section 3).")
+        elif not DECLINED.exists():
             print(f"The shared knowledge base (JitterCompany/jitter-knowledge) is not set up for this person. {SETUP}")
         return
     clone = Path(os.path.expanduser(lines[0]))
