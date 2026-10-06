@@ -56,3 +56,7 @@ The logboek is the journal on the office NAS, reachable only from the office net
 2. Write one concept per fact that still holds. Leave out the diary: dates, dead ends, "update 13:00".
 3. Cite each log as `logboek:<file name without .md>` and copy `project` across.
 4. Put the whole theme in one PR, so one reviewer sees it together.
+
+## 4. Export an entry to PDF
+
+`scripts/pdf.sh knowledge/<folder>/<entry>.md [out.pdf]` in the clone renders one entry with the Jitter cover and header, screenshots included. It needs `typst` and the `offerte` repo cloned next to `jitter-knowledge`. The `jitter-pdf` skill has the traps.
