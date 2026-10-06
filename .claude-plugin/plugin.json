@@ -1,7 +1,7 @@
 {
   "name": "jitter",
   "description": "Jitter house rules: Rust style, working conventions, comment-bloat and path-leak checks, KiCad skills",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "author": {
     "name": "Jitter"
   }
