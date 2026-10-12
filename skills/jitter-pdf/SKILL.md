@@ -24,9 +24,10 @@ Read that repo's own `CLAUDE.md` before writing content. It holds the language a
 
 ## An offerte
 
-1. Copy `example/` to a folder named after the project number.
-2. Put the content in the `.json`. The `.typ` beside it only imports the template and hands it the data.
-3. Build with `./build.sh path/to/2604-001.typ`, and read the PDF before handing it over.
+1. Get the next free offerte number from the knowledge base (`knowledge` skill). It is the only source for it. The format is in the offerte repo's `CLAUDE.md`.
+2. Copy `example/` to a folder named after that number, and add the offerte to the knowledge base register.
+3. Put the content in the `.json`. The `.typ` beside it only imports the template and hands it the data.
+4. Build with `offerte path/to/OF99-123-1.typ`, and read the PDF before handing it over.
 
 ## Any other branded document
 
