@@ -138,7 +138,8 @@ if self.tx.try_send(sample).is_err() {
 
 - **R11** `no_std`: no `Box`, no `alloc`. `heapless::Vec` and friends instead.
 - **R15** Drivers and peripheral handles are not `Copy` or `Clone`. Exclusive access is the point.
+- **R18** A firmware image that leaves the team (factory, customer, release artifact) ships as Intel HEX (`objcopy -O ihex`), not a raw `.bin`. The `.hex` carries its own load addresses, so nobody has to know or pass the flash offset when programming. Ship the `.elf` next to it for debugging.
 
 ## Not in core.md
 
-R12 to R15 and R17 are not in the session digest. R16 was retired: it overlapped with R13 and modern models do not need telling. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
+R12 to R15, R17 and R18 are not in the session digest. R16 was retired: it overlapped with R13 and modern models do not need telling. They live here because they are background or situational. Load this file when writing Rust, the `rust-style` skill does that.
