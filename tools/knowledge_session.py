@@ -5,7 +5,8 @@
 
 The clone path is the first line of ~/.config/jitter-knowledge/path. On a new session it
 pulls, but only a clean clone on master, fast-forward only, and it gives up quietly when
-offline. Prints one line for the session. Always exits 0, so a broken setup never blocks one.
+offline. Prints one line for the session, then the clone's `session-index.md`: the topics the
+knowledge base covers, so an agent knows to look. Always exits 0, so a broken setup never blocks one.
 Runs on Linux and macOS with a stock python3, no dependencies.
 """
 
@@ -19,6 +20,17 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "j
 DECLINED = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "jitter-ai-agent" / "knowledge-declined"
 BRANCH = "master"
 SETUP = "Ask once in your first reply, with the setup-extras skill, section 3."
+# The knowledge base's own check keeps the file at 2000. This only guards against a broken clone.
+INDEX_LIMIT = 2500
+
+
+def session_index(clone):
+    """The clone's topic index without its generated-file marker, or "" when it has none."""
+    path = clone / "session-index.md"
+    if not path.is_file():
+        return ""
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("<!--")]
+    return "\n".join(lines).strip()[:INDEX_LIMIT]
 
 
 def git(clone, *args, timeout=10):
@@ -82,6 +94,8 @@ def main():
         why = pull(clone)
         note = f" Not updated: {why}." if why else ""
     print(f"JITTER_KNOWLEDGE={clone}{note} Use the knowledge skill before guessing a part quirk, tool workaround or customer detail.")
+    if index := session_index(clone):
+        print(f"\n{index}")
 
 
 if __name__ == "__main__":
