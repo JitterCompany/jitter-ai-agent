@@ -654,6 +654,14 @@ def knowledge_session_cases(tmp, ok):
     (clone / "knowledge" / "draft.md").write_text("wip\n")
     rc, out = session("startup")
     ok &= check("knowledge hook leaves a dirty clone alone", rc == 0 and "uncommitted changes" in out, out)
+
+    ok &= check("knowledge hook prints no index when the clone has none", out.count("\n") == 1, out)
+    (clone / "session-index.md").write_text("<!-- Generated -->\n\nTools: jlink, probe-rs\n" + "x" * 5000)
+    rc, out = session("compact")
+    ok &= check(
+        "knowledge hook prints the session index, capped and without the marker",
+        rc == 0 and "Tools: jlink, probe-rs" in out and "<!--" not in out and len(out) < 2800, out,
+    )
     return ok
 
 
