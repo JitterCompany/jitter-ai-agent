@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/hardware_rules.py\" --hook; fi; exit 0"
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then p=$(cat); case \"$p\" in *.kicad_*) printf '%s' \"$p\" | python3 \"${CLAUDE_PLUGIN_ROOT}/tools/hardware_rules.py\" --hook;; esac; fi; exit 0"
           }
         ]
       },
