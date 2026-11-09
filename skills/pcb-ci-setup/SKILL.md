@@ -1,6 +1,6 @@
 ---
 name: pcb-ci-setup
-description: Set up (or extend) the shared Jitter KiCad hardware CI in a repo: the JitterCompany/pcb_release submodule, the ci-hardware / ci-hardware-release workflows, per-board release.toml and pinmap.config.toml, and the measured skip=/todo= board list. Use when asked to "set up the hardware CI", "add the KiCad checks/gates", "add a board to CI", "make the pinmap gate run", or to cut a hw-v* manufacturing release.
+description: Set up or extend the Jitter KiCad hardware CI: pcb_release submodule, ci-hardware workflows, release.toml, the pinmap gate, the board list. Use to add the KiCad checks, add a board, or cut a hw-v* release.
 ---
 
 # Jitter hardware CI (pcb_release)

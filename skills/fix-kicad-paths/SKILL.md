@@ -1,12 +1,6 @@
 ---
 name: fix-kicad-paths
-description: >-
-  Rewrite hardcoded absolute /home/* paths that KiCad bakes into schematic and
-  project files (most often the Sim.Library spice-model property) into portable
-  ${KIPRJMOD}-relative paths. Use when a commit is blocked by a pre-commit
-  blacklist on host-specific strings like "/home/<user>", or generally before
-  committing KiCad files, to strip machine-specific absolute paths. Fixes
-  *.kicad_sch, *.kicad_pro, *.kicad_pcb, *.kicad_sym, *.kicad_wks, *.kicad_dru.
+description: Rewrite absolute /home/<user> paths in KiCad files (often Sim.Library) into ${KIPRJMOD}-relative ones. Use when a commit is blocked by the path check, or before committing KiCad files.
 ---
 
 # Fix hardcoded paths in KiCad files
