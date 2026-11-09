@@ -21,7 +21,8 @@ The rules loaded in this session come from `JitterCompany/jitter-ai-agent`. This
 5. **Prefer a check over a sentence.** If a script can catch it, add it to `tools/comment_lint.py`, `tools/path_leak_check.py`, `tools/kicad_project_check.py`, or as a clippy lint in `templates/workspace-lints.toml`. A check lands in context exactly when it matters and never gets summarized away. Tune it against a real repo and report the hit count before committing it.
 6. **Bump the plugin version** in `.claude-plugin/plugin.json` and `marketplace.json`, or the change never reaches anyone's cached copy.
 7. **Branch and commit.** One rule per branch, named `rule/<short-slug>`. The commit message says what the rule is and why it exists.
-8. **Push the branch and open the PR.** Opening it brings up an approval prompt (W2). Give the user the link.
+8. **Run `python3 tools/ci_local.py`** and fix what fails. It runs the same steps as CI.
+9. **Push the branch and open the PR.** Opening it brings up an approval prompt (W2). Give the user the link.
 
 ## B. Override a rule
 

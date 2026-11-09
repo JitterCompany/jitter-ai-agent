@@ -583,9 +583,10 @@ def hook_wiring_cases(ok):
 
     marker = "jitter-ai-agent/onboarded"
     skill = (TOOLS.parent / "skills" / "setup-extras" / "SKILL.md").read_text()
+    session = (TOOLS / "extras_session.py").read_text()
     ok &= check(
         "the first-run prompt and the skill agree on the marker path",
-        marker in commands and marker in skill,
+        "extras_session.py" in commands and '"jitter-ai-agent" / "onboarded"' in session and marker in skill,
         "hook and skill must write and read the same file",
     )
     unguarded = [
@@ -604,7 +605,7 @@ def knowledge_session_cases(tmp, ok):
     """The hook prompts once, stays quiet after a no, and pulls only a clean clone on a new session."""
     tmp = tmp / "knowledge"
     tmp.mkdir()
-    env = dict(os.environ, XDG_CONFIG_HOME=str(tmp / "cfg"), XDG_CACHE_HOME=str(tmp / "cache"))
+    env = dict(os.environ, HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "cfg"), XDG_CACHE_HOME=str(tmp / "cache"))
 
     def session(source):
         done = subprocess.run(
@@ -619,6 +620,12 @@ def knowledge_session_cases(tmp, ok):
     (tmp / "cache" / "jitter-ai-agent" / "knowledge-declined").write_text("x")
     rc, out = session("startup")
     ok &= check("knowledge hook is silent after a no", rc == 0 and not out.strip(), out)
+    found = tmp / "home" / "dev" / "self" / "jitter-knowledge" / "knowledge"
+    found.mkdir(parents=True)
+    (found / "index.md").write_text("x\n")
+    rc, out = session("startup")
+    ok &= check("knowledge hook finds an unrecorded clone under ~/dev", "dev/self/jitter-knowledge" in out, out)
+    (found / "index.md").unlink()
 
     config = tmp / "cfg" / "jitter-knowledge" / "path"
     config.parent.mkdir(parents=True)
@@ -650,6 +657,94 @@ def knowledge_session_cases(tmp, ok):
     return ok
 
 
+def denies(output):
+    return '"permissionDecision": "deny"' in output
+
+
+def commit_guard_cases(tmp, ok):
+    """The agent's commits run tools/precommit/*.py --staged, the same scripts the git hook runs."""
+    repo = tmp / "commit-guard"
+    home = "/{}".format("home")  # built at runtime, so this file passes its own check
+    git(["init", "-q", "-b", "master", str(repo)], tmp)
+    (repo / "old.txt").write_text("legacy = " + home + "/alice/old\n")
+    git(["add", "old.txt"], repo)
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "one"], repo)
+
+    def commit(command):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "guard_commit.py")],
+            input=json.dumps({"tool_name": "Bash", "cwd": str(repo), "tool_input": {"command": command}}),
+            capture_output=True, text=True, check=False,
+        )
+        return done.returncode, done.stdout
+
+    (repo / "new.md").write_text("see " + home + "/bob/notes\n")
+    git(["add", "new.md"], repo)
+    for command in ("git commit -m x", "bash -c 'git commit -m x'", "timeout 60 git -C . commit -qm x"):
+        rc, out = commit(command)
+        ok &= check("commit guard denies a staged leak: " + command, rc == 0 and denies(out) and home + "/bob" in out, out)
+    rc, out = commit("git commit --dry-run -m x")
+    ok &= check("commit guard leaves a dry run alone", rc == 0 and not denies(out), out)
+    rc, out = commit("git status")
+    ok &= check("commit guard ignores other commands", rc == 0 and not out.strip(), out)
+
+    (repo / "new.md").write_text("see /home/<user>/notes and /home/user/x\n")
+    git(["add", "new.md"], repo)
+    rc, out = commit("git commit -m x")
+    ok &= check("commit guard allows placeholders", rc == 0 and not denies(out), out)
+
+    (repo / "old.txt").write_text("legacy = " + home + "/alice/old\nnew line\n")
+    git(["add", "old.txt"], repo)
+    rc, out = commit("git commit -m x")
+    ok &= check("commit guard blocks an old leak in a touched file, same as the git hook", rc == 0 and denies(out), out)
+
+    (repo / "old.txt").write_text("clean\n")
+    git(["add", "old.txt"], repo)
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "clean"], repo)
+    (repo / "old.txt").write_text("clean\nmore = " + home + "/carol/x\n")
+    rc, out = commit("git commit -m x")
+    ok &= check("commit guard skips unstaged changes on a plain commit", rc == 0 and not denies(out), out)
+    rc, out = commit("git commit -am x")
+    ok &= check("commit guard sees unstaged changes with -am", rc == 0 and denies(out) and home + "/carol" in out, out)
+    return ok
+
+
+def extras_session_cases(tmp, ok):
+    """The extras line follows the real state, not only the marker."""
+    tmp = tmp / "extras"
+    (tmp / "repo").mkdir(parents=True)
+    git(["init", "-q", str(tmp / "repo")], tmp)
+    env = dict(os.environ, XDG_CONFIG_HOME=str(tmp / "cfg"), XDG_CACHE_HOME=str(tmp / "cache"),
+               GIT_CONFIG_GLOBAL=str(tmp / "gitconfig"))
+    env.pop("JITTER_PRECOMMIT_CHECKS", None)
+    (tmp / "gitconfig").write_text("")
+
+    def session():
+        done = subprocess.run([sys.executable, str(TOOLS / "extras_session.py")], cwd=tmp / "repo",
+                              capture_output=True, text=True, env=env, check=False)
+        return done.returncode, done.stdout
+
+    rc, out = session()
+    ok &= check("extras hook asks on a first run", rc == 0 and "First run" in out, out)
+    marker = tmp / "cache" / "jitter-ai-agent" / "onboarded"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("2026-09-25\n")
+    rc, out = session()
+    ok &= check("extras hook reports missing checks despite the marker",
+                rc == 0 and "not active" in out and "2026-09-25" in out, out)
+    checks = tmp / "cfg" / "jitter-git" / "checks-path"
+    checks.parent.mkdir(parents=True)
+    checks.write_text(str(TOOLS / "precommit") + "\n")
+    hooks = tmp / "hooks"
+    hooks.mkdir()
+    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 0\n")
+    (hooks / "pre-commit").chmod(0o755)
+    (tmp / "gitconfig").write_text("[core]\n\thooksPath = {}\n".format(hooks))
+    rc, out = session()
+    ok &= check("extras hook is silent when checks and hook are in place", rc == 0 and not out.strip(), out)
+    return ok
+
+
 def main():
     ok = True
     with tempfile.TemporaryDirectory() as tmp:
@@ -661,6 +756,8 @@ def main():
         ok = guard_cases(ok)
         ok = branch_cases(tmp, ok)
         ok = knowledge_session_cases(tmp, ok)
+        ok = commit_guard_cases(tmp, ok)
+        ok = extras_session_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
     ok = typst_package_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))

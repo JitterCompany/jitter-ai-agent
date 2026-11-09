@@ -27,7 +27,7 @@
           },
           {
             "type": "command",
-            "command": "MARK=\"${XDG_CACHE_HOME:-$HOME/.cache}/jitter-ai-agent/onboarded\"; [ -f \"$MARK\" ] || printf '%s\\n' \"First run for this person: they have not been offered the optional extras yet (commit-time checks, the shared git hook). Use the setup-extras skill early in this session, ask once, and write the marker either way.\"; exit 0"
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/extras_session.py\"; fi; exit 0"
           }
         ]
       }
@@ -54,6 +54,10 @@
           {
             "type": "command",
             "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/guard_push.py\"; rc=$?; [ $rc -eq 2 ] && exit 2; fi; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/guard_commit.py\"; fi; exit 0"
           }
         ]
       }
