@@ -138,7 +138,10 @@ if self.tx.try_send(sample).is_err() {
 
 - **R11** `no_std`: no `Box`, no `alloc`. `heapless::Vec` and friends instead.
 - **R15** Drivers and peripheral handles are not `Copy` or `Clone`. Exclusive access is the point.
-- **R18** A firmware image that leaves the team (factory, customer, release artifact) ships as Intel HEX (`objcopy -O ihex`), not a raw `.bin`. The `.hex` carries its own load addresses, so nobody has to know or pass the flash offset when programming. Ship the `.elf` next to it for debugging.
+- **R18** Ship a firmware image in the form its route needs, built by CI:
+  - **Production programming** goes through the `sensor-link-provision` app. Ship the CI firmware zip: bootloader and application as ELF, plus the project's `provision.toml`. The app flashes, provisions and checks the board in one pass, so do not add a separate flash step or a converted image.
+  - **OTA** is the raw `.bin` with the signature CI makes for it. The bootloader verifies the signature over that binary and refuses anything else, so never hand out an unsigned or locally signed image.
+  - **A standalone image for someone else's programmer**, such as the factory test at the PCBA house, ships as `.hex` next to the `.elf`. The `.hex` carries its own load addresses, so nobody needs the flash offset.
 
 ## Not in core.md
 
