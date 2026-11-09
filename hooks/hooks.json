@@ -10,11 +10,11 @@
           },
           {
             "type": "command",
-            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && [ -f \"${CLAUDE_PLUGIN_ROOT}/rules/hardware.md\" ]; then find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && cat \"${CLAUDE_PLUGIN_ROOT}/rules/hardware.md\" || true; fi"
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/hardware_rules.py\" --session; fi; exit 0"
           },
           {
             "type": "command",
-            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && python3 \"${CLAUDE_PLUGIN_ROOT}/tools/kicad_project_check.py\" 2>&1 || true; fi"
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; find . -maxdepth 3 -name '*.kicad_pro' -print -quit | grep -q . && python3 \"${CLAUDE_PLUGIN_ROOT}/tools/kicad_project_check.py\" 2>&1 || true; fi"
           },
           {
             "type": "command",
@@ -27,12 +27,21 @@
           },
           {
             "type": "command",
-            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/extras_session.py\"; fi; exit 0"
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; python3 \"${CLAUDE_PLUGIN_ROOT}/tools/extras_session.py\"; fi; exit 0"
           }
         ]
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|Bash|Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ] && command -v python3 >/dev/null 2>&1; then python3 \"${CLAUDE_PLUGIN_ROOT}/tools/hardware_rules.py\" --hook; fi; exit 0"
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
