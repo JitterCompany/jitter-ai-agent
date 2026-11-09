@@ -21,7 +21,7 @@ Opening a project is enough for KiCad to rewrite `.kicad_pro`, and it drops thin
 
 ## Tooling
 
-- **H10** Use `kicad-cli` instead of parsing KiCad files by hand. It exports netlists, BOMs, gerbers, PDFs and 3D models, and it stays correct across file-format changes.
+- **H10** Use `kicad-cli` instead of parsing KiCad files by hand, especially for quick questions such as which value a part has. It exports netlists, BOMs, gerbers, PDFs and 3D models, and it stays correct across file-format changes.
 - **H11** For anything `kicad-cli` does not cover, write a script (Python) and keep it in the repo. Do not hand-parse s-expressions inline in a one-off shell command.
 - **H12** Check whether the project already has tooling for the job, such as `hardware/tools/pcb.sh`, before writing a new script.
 

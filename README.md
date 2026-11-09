@@ -11,7 +11,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `rules/core.md` | The short rule set, injected at every session start and after every compaction |
 | `rules/rust-style.md` | Full Rust guide with bad-to-good examples, home of the `R` ids |
 | `rules/prose.md` | Writing style, applies to comments, docs and commit messages too, `P` ids |
-| `rules/hardware.md` | KiCad, PCB, lab, `H` ids. Loads by itself in a repo with KiCad files |
+| `rules/hardware.md` | KiCad, PCB, lab, `H` ids. Loads by itself when the project has KiCad files or a tool call touches one (`tools/hardware_rules.py`) |
 | `tools/comment_lint.py` | Comment-bloat check for Rust, standalone or as an edit hook |
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
 | `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |

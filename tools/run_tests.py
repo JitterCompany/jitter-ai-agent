@@ -753,6 +753,37 @@ def extras_session_cases(tmp, ok):
     return ok
 
 
+def hardware_rules_cases(tmp, ok):
+    """hardware.md follows the project and the files touched, not the shell's cwd."""
+    tmp = tmp / "hw"
+    (tmp / "board" / "pcb").mkdir(parents=True)
+    (tmp / "board" / "pcb" / "x.kicad_pro").write_text("{}")
+    (tmp / "scratch").mkdir()
+    env = dict(os.environ, XDG_CACHE_HOME=str(tmp / "cache"), CLAUDE_PROJECT_DIR=str(tmp / "board"))
+
+    def call(mode, payload, project=True):
+        e = env if project else {k: v for k, v in env.items() if k != "CLAUDE_PROJECT_DIR"}
+        done = subprocess.run([sys.executable, str(TOOLS / "hardware_rules.py"), mode], cwd=tmp / "scratch",
+                              input=json.dumps(payload), capture_output=True, text=True, env=e, check=False)
+        return done.returncode, done.stdout
+
+    rc, out = call("--session", {"session_id": "s1", "cwd": str(tmp / "scratch")})
+    ok &= check("session start finds KiCad via CLAUDE_PROJECT_DIR from a scratch cwd", rc == 0 and "**H10**" in out, out)
+    rc, out = call("--hook", {"session_id": "s1", "tool_input": {"file_path": "a/b.kicad_sch"}})
+    ok &= check("hook stays quiet when the rules are already loaded", rc == 0 and not out.strip(), out)
+    rc, out = call("--session", {"session_id": "s2", "cwd": str(tmp / "scratch")}, project=False)
+    ok &= check("session start without KiCad prints nothing", rc == 0 and not out.strip(), out)
+    rc, out = call("--hook", {"session_id": "s2", "tool_input": {"command": "grep x y.py"}})
+    ok &= check("hook ignores a call without a KiCad path", rc == 0 and not out.strip(), out)
+    rc, out = call("--hook", {"session_id": "s2", "hook_event_name": "PostToolUse",
+                              "tool_input": {"command": "kicad-cli sch export bom b.kicad_sch"}})
+    ok &= check("hook loads the rules on the first KiCad path", rc == 0 and "**H10**" in json.loads(out or "{}")
+                .get("hookSpecificOutput", {}).get("additionalContext", ""), out)
+    rc, out = call("--hook", {"session_id": "s2", "tool_input": {"file_path": "b.kicad_pcb"}})
+    ok &= check("hook loads the rules only once per context", rc == 0 and not out.strip(), out)
+    return ok
+
+
 def main():
     ok = True
     with tempfile.TemporaryDirectory() as tmp:
@@ -766,6 +797,7 @@ def main():
         ok = knowledge_session_cases(tmp, ok)
         ok = commit_guard_cases(tmp, ok)
         ok = extras_session_cases(tmp, ok)
+        ok = hardware_rules_cases(tmp, ok)
     ok = hook_wiring_cases(ok)
     ok = typst_package_cases(ok)
     print("\n{}".format("all good" if ok else "something regressed"))
