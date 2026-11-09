@@ -1,6 +1,6 @@
 ---
 name: circuit-advice
-description: Jitter's positions on power integrity, EMC and decoupling, for when you are advising on a circuit rather than editing files. Use when asked about ground planes or ground splits, decoupling capacitors, supply filtering or ferrites, EMC problems, a noisy rail, a failed EMC test, or when reviewing or troubleshooting someone's schematic.
+description: Jitter positions on grounding, ground splits, decoupling, supply filtering, ferrites and EMC. Use when advising on, reviewing or troubleshooting a circuit or schematic, a noisy rail or a failed EMC test.
 ---
 
 # Advising on a circuit

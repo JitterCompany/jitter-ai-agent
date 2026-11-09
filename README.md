@@ -18,7 +18,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
 | `tools/layout_check.py` | R7, the `mod.rs` files |
 | `tools/guard_push.py` | Enforces W2: a push to master, a force push, a tag or a PR brings up an approval prompt |
-| `tools/knowledge_session.py` | Session hook: names the knowledge base clone and pulls it |
+| `tools/knowledge_session.py` | Session hook: names the knowledge base clone, pulls it, and prints its `session-index.md`, the topics it covers |
 | `tools/run_tests.py`, `tools/check_rule_ids.py` | Self-tests for the checks, and the id consistency check. Both run in CI |
 | `templates/` | Clippy workspace lints and rustfmt, the only files a project repo commits |
 | `typst/jitter-report/` | The house style for engineering reports, as a local Typst package |

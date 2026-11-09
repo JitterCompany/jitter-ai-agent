@@ -1,6 +1,6 @@
 ---
 name: knowledge
-description: Look things up in, and add to, the shared Jitter knowledge base (JitterCompany/jitter-knowledge) - parts and their errata, debug tools, protocols, RF, procedures, lessons learned, and per-customer setups. Use before guessing a chip quirk, a tool workaround, a protocol detail or how a customer's setup works, when starting on a customer's project, and when the user says "add this to the knowledge base", "remember this for everyone" about a fact, or "what do we know about X".
+description: Look up and add to the shared Jitter knowledge base: parts and errata, tools, protocols, RF, procedures, lessons, customer setups. Use before guessing a quirk or workaround, and for "what do we know about X".
 ---
 
 # The shared knowledge base
@@ -22,6 +22,7 @@ The full table is in the jitter-ai-agent README, under "Skill, knowledge or rule
 
 1. Grep first, by part number, tool name, customer slug or error message:
    `grep -ril "stm32l4" "$JITTER_KNOWLEDGE/knowledge"`
+   The session start lists the customers and tags the knowledge base has. A word you are working on that appears there is worth a grep, but the list is only topics, never the facts themselves.
 2. Browse when you do not know the word: `knowledge/index.md`, then the folder's `index.md`, then the concept. Read only what you need.
 3. On a customer's project, read `knowledge/customers/<slug>/index.md` once at the start.
 4. Weigh what you find:

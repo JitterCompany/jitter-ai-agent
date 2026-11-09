@@ -1,6 +1,6 @@
 ---
 name: kicad-pinmap
-description: Generate a firmware pin-map (TOML) for an MCU from a KiCad schematic: extract net names per pin via the kicad-cli netlist, annotate with alternate functions / timers / EXTI from the symbol, sanity-check, and emit a grouped human-readable reference like the Jitter pins_vx.toml. Use when asked to map MCU pins to nets/functions, produce a firmware pin reference, or check pin/timer/EXTI assignments in a KiCad design.
+description: Generate a firmware pin map (TOML) for an MCU from a KiCad schematic, with alternate functions, timers and EXTI. Use to map MCU pins to nets or check pin and timer assignments.
 ---
 
 # KiCad to firmware pin-map

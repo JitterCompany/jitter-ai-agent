@@ -1,6 +1,6 @@
 ---
 name: jlink-target
-description: Attach to, flash, reset and read RTT logs from a Cortex-M board over a SEGGER J-Link, on Jitter boards that have no NRST on the debug header. Streams attach status to the user, diagnoses VTref, and knows the debugger side effects (a connect halts the core for ms). Use when asked to flash a board, get a boot log, check why a J-Link won't connect, or when a timing bug only shows up while a debugger is attached.
+description: Flash, reset, attach and read RTT logs on a Cortex-M board over a SEGGER J-Link, for boards without NRST. Use for flashing, boot logs, a J-Link that will not connect, or debugger-only timing bugs.
 ---
 
 # J-Link on Jitter boards
