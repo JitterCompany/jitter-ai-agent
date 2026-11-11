@@ -4,6 +4,8 @@ Applies to everything: chat replies, code comments, doc comments, READMEs, decis
 
 Home of the `P` rules. `core.md` carries P1 to P4 in one line.
 
+For ADRs, READMEs, specs, procedures and issue or PR descriptions, the `clear-docs` skill goes further: a simplified style about 70% of the way to ASD-STE100.
+
 ## Rules
 
 - **P1** No em dashes. Use a comma, a full stop, or brackets.
