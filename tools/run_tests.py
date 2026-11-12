@@ -81,16 +81,18 @@ PROJECT = {
 }
 
 
-def run(tool, args, cwd=None, stdin=None):
+def run(tool, args, cwd=None, stdin=None, env=None):
+    # A machine opt-out in the developer's own environment must not change the results.
+    clean = {k: v for k, v in os.environ.items() if k != "JITTER_PUBLISH_ALLOW"}
     done = subprocess.run(
         [sys.executable, str(TOOLS / tool), *args],
-        cwd=cwd, input=stdin, capture_output=True, text=True, check=False,
+        cwd=cwd, input=stdin, capture_output=True, text=True, check=False, env=clean | (env or {}),
     )
     return done.returncode, done.stdout + done.stderr
 
 
-def hook(tool, payload):
-    return run(tool, ["--hook"], stdin=json.dumps(payload))
+def hook(tool, payload, env=None):
+    return run(tool, ["--hook"], stdin=json.dumps(payload), env=env)
 
 
 def edit(path, new_string):
@@ -537,6 +539,22 @@ def guard_cases(ok):
     for command, name in GUARD_ORDINARY:
         result = hook("guard_push.py", {"tool_name": "Bash", "tool_input": {"command": command}})
         ok &= check("guard allows: " + name, result[0] == 0 and not asks(result[1]), result[1])
+
+    def asks_with_opt_out(command, allow):
+        payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+        result = hook("guard_push.py", payload, env={"JITTER_PUBLISH_ALLOW": allow})
+        return asks(result[1])
+
+    ok &= check("opt-out frees gh pr create", not asks_with_opt_out("gh pr create --fill", "gh pr create"))
+    ok &= check("opt-out tolerates spaces in the list",
+                not asks_with_opt_out("gh pr create --fill", "gh pr merge, gh pr create"))
+    ok &= check("opt-out of gh pr create still asks for gh pr merge",
+                asks_with_opt_out("gh pr merge 3", "gh pr create"))
+    ok &= check("opt-out still asks for a later segment",
+                asks_with_opt_out("gh pr create --fill && gh pr merge 3", "gh pr create"))
+    ok &= check("git push cannot be opted out", asks_with_opt_out("git push origin HEAD:master", "git push"))
+    ok &= check("a push reason cannot be opted out",
+                asks_with_opt_out("git push origin HEAD:master", "git push to master"))
 
     # The threshold is a setting, not a rule, so both directions have to work.
     # The candidate expansion used to be quadratic, which cost seconds on an ordinary command.
