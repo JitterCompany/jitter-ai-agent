@@ -105,6 +105,14 @@ The push guard is a reminder, not a security control. An agent determined to get
 
 It is the one rule enforced at the moment of action (W2), because publishing is the one thing here that cannot be undone. A feature branch pushes freely, since a PR review stands between it and master. A push to master or main, a force push, a delete, a tag, and opening or merging a PR make the guard answer "ask", so Claude Code shows its own approval prompt. Approval is a click by the user, not a flag the agent sets. The Claude Code docs promise that prompt in the default permission mode only. What "ask" does in auto mode and with permissions bypassed is not documented, so check it there before relying on it.
 
+A person can opt out of asking for some of these on their own machine, for example to let the agent open PRs. Set the commands in the `env` block of `~/.claude/settings.json`:
+
+```json
+{ "env": { "JITTER_PUBLISH_ALLOW": "gh pr create" } }
+```
+
+Only `gh pr create`, `gh pr merge`, `gh release create` and `git send-email` can be listed. Every push that asks keeps asking. Record the exception as a W2 override in `~/.claude/CLAUDE.md` too, so the agent stops asking in chat.
+
 ## What the self-tests are, and are not
 
 `tools/run_tests.py` pins the contract: thresholds (a run of 4 is silent, 5 speaks), pattern widths (four fill characters are a banner), every row of the push guard's table, and every separator that starts a command. Deliberate mutations of those values fail the suite, which is checked by mutating the tools and re-running it.

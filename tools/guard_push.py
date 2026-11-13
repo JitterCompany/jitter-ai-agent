@@ -13,6 +13,10 @@ Needs approval:
 Free:
     git push of a feature branch, which a PR review covers before it reaches master
 
+Opt-out per machine: JITTER_PUBLISH_ALLOW holds a comma-separated list of the names in
+PUBLISHING other than "git push", for example "gh pr create". Set it in the "env" block of
+~/.claude/settings.json. A push to master, a force push or a tag cannot be opted out.
+
 A human pushing from their own terminal is unaffected: this only sees the agent's Bash calls.
 
 This is a reminder, not a security control. An agent that wants to get around it can, for
@@ -55,6 +59,8 @@ PUSH_ASKS = {
 }
 PUSH_OPTION_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 PROGRAMS = {command for command, _, _ in PUBLISHING}
+ALLOW_VAR = "JITTER_PUBLISH_ALLOW"
+OPTIONAL = {name for _, _, name in PUBLISHING if name != "git push"}
 
 SEPARATORS = ["\n", ";", "&&", "||", "|", "&", "$(", "`"]
 ARITHMETIC = re.compile(r"\$\(\([^)]*\)\)")
@@ -272,6 +278,12 @@ def push_needs_approval(args, repo):
     return None
 
 
+def allowed_here():
+    """The publishing commands this machine has opted out of asking for."""
+    names = {name.strip() for name in os.environ.get(ALLOW_VAR, "").split(",")}
+    return names & OPTIONAL
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -280,10 +292,11 @@ def main():
 
     command = (payload.get("tool_input") or {}).get("command") or ""
     cwd = payload.get("cwd") or os.getcwd()
+    allowed = allowed_here()
 
     for segment in segments(command):
         reason = publishing_in(segment, cwd)
-        if reason:
+        if reason and reason not in allowed:
             json.dump({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "ask",
