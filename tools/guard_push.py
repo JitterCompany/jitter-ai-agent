@@ -13,6 +13,9 @@ Needs approval:
 Free:
     git push of a feature branch, which a PR review covers before it reaches master
 
+The branch is read in the session's folder, or in the folder a `cd` or `pushd` earlier in
+the same command moved to. A `cd` it cannot follow makes a later push ask.
+
 Opt-out per machine: JITTER_PUBLISH_ALLOW holds a comma-separated list of the names in
 PUBLISHING other than "git push", for example "gh pr create". Set it in the "env" block of
 ~/.claude/settings.json. A push to master, a force push or a tag cannot be opted out.
@@ -43,6 +46,7 @@ RUNS_A_STRING = {"bash", "sh", "zsh", "dash", "eval"}
 # Programs that run the command that follows their own arguments.
 WRAPPERS = {"sudo", "doas", "env", "time", "timeout", "nohup", "xargs", "setsid", "stdbuf",
             "script", "ssh-agent", "nice", "ionice"}
+CHANGES_DIR = {"cd", "pushd", "popd"}
 GROUPING = {"(", ")", "{", "}", "then", "do", "else", "elif", "!", "&&", "||", ";", "\\"}
 GIT_OPTION_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 GIT_FLAG = {"--no-pager", "--paginate", "-P", "--bare", "--literal-pathspecs",
@@ -215,7 +219,8 @@ def in_tokens(tokens, cwd, depth=0, via_xargs=False):
             rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
         ):
             if rest[0] == "-C" and len(rest) > 1:
-                repo = os.path.join(repo, os.path.expanduser(rest[1]))
+                path = os.path.expanduser(rest[1])
+                repo = path if os.path.isabs(path) else repo and os.path.join(repo, path)
             rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
         if rest[: len(subcommand)] != subcommand:
             continue
@@ -248,12 +253,16 @@ def push_needs_approval(args, repo):
         elif not arg.startswith("-"):
             positional.append(arg)
 
+    if repo is None:
+        return "git push after a cd the guard cannot follow (use git -C <repo> push)"
+    if git_out(repo, "rev-parse", "--git-dir") is None:
+        return "git push outside a git repo (use git -C <repo> push)"
     current = git_out(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
     refspecs = positional[1:]
     if not refspecs:
         # The target is the current branch's upstream, or the branch of the same name.
         if current is None:
-            return "git push from a detached HEAD or outside a repo"
+            return "git push from a detached HEAD"
         upstream = git_out(repo, "rev-parse", "--abbrev-ref", current + "@{upstream}")
         targets = [current] + ([upstream.split("/", 1)[-1]] if upstream else [])
         hit = next((b for b in targets if b in PROTECTED), None)
@@ -284,6 +293,60 @@ def allowed_here():
     return names & OPTIONAL
 
 
+ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.S)
+
+
+def assigns(segment, variables):
+    """Record `NAME=value` or `export NAME=value` standing alone, as in `R=~/dev/x; git -C $R push`.
+
+    A value that still holds a `$` or a backtick is unknown, and stays unexpanded where it is used.
+    """
+    tokens = words(segment)
+    if tokens and tokens[0] == "export":
+        tokens = tokens[1:]
+    found = len(tokens) == 1 and ASSIGNMENT.match(tokens[0])
+    if not found:
+        return False
+    value = found.group(2)
+    variables[found.group(1)] = None if "$" in value or "`" in value else value
+    return True
+
+
+def expand(segment, variables):
+    """Fill in the variables this command set itself. Others stay as they are."""
+    def known(match):
+        value = variables.get(match.group(1) or match.group(2))
+        return match.group(0) if value is None else shlex.quote(value)
+    return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)", known, segment)
+
+
+def is_cd(segment):
+    tokens = strip_prefix(words(segment))
+    return bool(tokens) and tokens[0] in CHANGES_DIR
+
+
+def cd_target(segment, cwd):
+    """The folder after this `cd`, or None when the guard cannot tell.
+
+    A later push from None asks, so every case that is not a plain path errs that way:
+    a variable, `cd -`, `popd`, a folder that does not exist, and a `cd` inside a
+    subshell, which only lasts until its closing parenthesis.
+    """
+    raw = words(segment)
+    tokens = strip_prefix(list(raw))
+    if "(" in raw[: len(raw) - len(tokens)] or cwd is None:
+        return None
+    args = [t for t in tokens[1:] if (t == "-" or not t.startswith("-")) and t not in GROUPING]
+    if tokens[0] == "popd" or len(args) > 1 or args == ["-"]:
+        return None
+    if not args:
+        return os.path.expanduser("~")
+    if any(ch in args[0] for ch in "$`*?"):
+        return None
+    target = os.path.normpath(os.path.join(cwd, os.path.expanduser(args[0])))
+    return target if os.path.isdir(target) else None
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -294,7 +357,14 @@ def main():
     cwd = payload.get("cwd") or os.getcwd()
     allowed = allowed_here()
 
+    variables = {}
     for segment in segments(command):
+        segment = expand(segment, variables)
+        if assigns(segment, variables):
+            continue
+        if is_cd(segment):
+            cwd = cd_target(segment, cwd)
+            continue
         reason = publishing_in(segment, cwd)
         if reason and reason not in allowed:
             json.dump({"hookSpecificOutput": {

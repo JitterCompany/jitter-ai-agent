@@ -497,11 +497,12 @@ def branch_cases(tmp, ok):
     git(["remote", "add", "origin", str(remote)], repo)
     git(["push", "-q", "origin", "master"], repo)
 
-    def push(command, cwd=repo):
+    def push(command, cwd=repo, home=None):
         done = subprocess.run(
             [sys.executable, str(TOOLS / "guard_push.py"), "--hook"],
             input=json.dumps({"tool_name": "Bash", "cwd": str(cwd), "tool_input": {"command": command}}),
             capture_output=True, text=True, check=False,
+            env=dict(os.environ, HOME=str(home)) if home else None,
         )
         return done.returncode == 0 and asks(done.stdout)
 
@@ -511,6 +512,33 @@ def branch_cases(tmp, ok):
     for command in ("git push", "git push -u origin HEAD", "git push origin feature", "git push origin feature:feature"):
         ok &= check("a feature branch pushes freely: " + command, not push(command))
     ok &= check("git -C reads the branch of that repo", not push("git -C {} push".format(repo), cwd=tmp))
+    # Sessions often start in a folder that holds many repos and cd into one per command.
+    for command, name in [
+        ("cd {} && git push".format(repo), "an absolute cd"),
+        ("cd repo && git push -u origin HEAD", "a relative cd"),
+        ("cd {} && git add a && git commit -qm x && git push -q".format(repo), "a cd several steps back"),
+        ("pushd {} && git push".format(repo), "pushd"),
+        ("cd {}; git push".format(repo), "a cd before a semicolon"),
+        ("R={}; git -C $R add a && git -C $R push -q -u origin HEAD".format(repo), "git -C through a variable"),
+        ("export R={} && cd ${{R}} && git push".format(repo), "cd through an exported variable"),
+    ]:
+        ok &= check("a feature branch after " + name + " pushes freely", not push(command, cwd=tmp))
+    for command, name, cwd in [
+        ("cd {} && git push origin HEAD:main".format(repo), "a cd still checks the target", tmp),
+        ("cd {} && git push".format(tmp), "a cd out of the repo", repo),
+        ("cd $UNSET_IN_THIS_COMMAND/repo && git push", "a cd through a variable set elsewhere", tmp),
+        ("git -C $R push", "git -C through a variable set elsewhere", tmp),
+        ("R=$(pwd); git -C $R push", "a variable the guard cannot work out", tmp),
+        ("R={}; git -C $R push origin HEAD:main".format(repo), "a variable still checks the target", tmp),
+        ("popd && git push", "popd", tmp),
+        ("cd {}/missing && git push".format(tmp), "a cd into a missing folder", tmp),
+        ("(cd {}) && git push".format(repo), "a cd that ended with its subshell", tmp),
+        ("cd {} && cd .. && git push".format(repo), "a second cd out again", tmp),
+    ]:
+        ok &= check("asks: " + name, push(command, cwd=cwd))
+    # HOME is a repo on a feature branch here, so `cd -` cannot pass by landing in it.
+    ok &= check("a bare cd goes home", not push("cd && git push", cwd=tmp, home=repo))
+    ok &= check("asks: cd -", push("cd - && git push", cwd=tmp, home=repo))
     for command, name in [
         ("git push -f origin feature", "--force"),
         ("git push --force-with-lease=feature origin feature", "--force-with-lease=..."),
