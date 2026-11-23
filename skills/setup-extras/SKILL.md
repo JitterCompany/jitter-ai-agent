@@ -60,22 +60,62 @@ If they have no plugin install of their own, use the agent user's marketplace pa
 
 ## 2. The shared git hook
 
-The checks above only run if the repo actually calls the shared hook from `JitterCompany/git_utils`. Look first:
+The checks in section 1 only run on a person's own commits if the repo calls the hook from `JitterCompany/git_utils` (public). That is the one thing git itself enforces, so offer it once, as part of the first-run question.
+
+### Look first
 
 ```sh
+git config --global --get init.templateDir
 git config --get core.hooksPath
-ls -l .git/hooks/pre-commit
+ls -l "$(git rev-parse --git-common-dir)/hooks/pre-commit"
 ```
 
-One of those two should point into a `git_utils` clone. If neither does, the hook is not installed and the checks will never run. Offer the global setting, which covers every repo at once:
+It is in place when the repo's hook, or `core.hooksPath`, points into a `git_utils` clone. Usually that is `~/git`: confirm with `git -C ~/git remote get-url origin`.
+
+### Install it the git_utils way
+
+With their yes, and in their own terminal when the agent runs as its own user:
 
 ```sh
-git config --global core.hooksPath /path/to/git_utils/scripts
+git clone https://github.com/JitterCompany/git_utils.git ~/git   # skip if a clone exists
+~/git/install.sh                                                # links the hook into the template
+git config --global init.templateDir ~/git/template             # every new clone gets the hook
 ```
 
-If they have no clone of `git_utils`, say where it is (`github.com/JitterCompany/git_utils`, public) and let them clone it where they keep their tools. Do not clone it into a project repo.
+The template only reaches repos cloned or created from now on. For a repo they already have, `git init` inside it adds the hook. It leaves an existing hook alone, so it is safe to run:
 
-A repo can still add its own `.git-pre-commit`, which the shared hook runs after the rest.
+```sh
+for d in ~/dev/jitter/*/ ~/dev/jitter/common/*/; do [ -d "$d/.git" ] && git -C "$d" init -q; done
+```
+
+Adjust the folders to where they keep their repos, and show them the list before running it.
+
+Do not set `core.hooksPath`, even though the git_utils README suggests it. It switches off every hook a repo keeps in `.git/hooks`, and some repos have their own hook for a reason. If it is already set, leave it and tell them what it does.
+
+### When the agent runs as its own user
+
+A hook inside a repo binds everyone who commits in that checkout. So when their repo has no hook and their `git_utils` clone is readable to you, you can close the gap for that one repo, after asking:
+
+```sh
+ln -s ~person/git/scripts/pre-commit "$(git rev-parse --git-common-dir)/hooks/pre-commit"
+```
+
+Use their real clone path. Never overwrite an existing hook.
+
+### If they skip it
+
+Do not ask again. Their hand-made commits then go unchecked, but yours do not: `guard_commit.py` runs the section 1 checks on every commit you make, with no setup. Say that in one line, so they know what the no costs.
+
+## Keep it current
+
+A setup someone accepted can quietly stop working. The session check looks for this without touching the network, and reports each problem once:
+
+- **git_utils hook too old to run the shared checks:** `git -C ~/git pull`. The repos link to the clone's script, so they all pick it up at once.
+- **git_utils clone behind its last fetch:** the same pull.
+- **checks-path entry gone:** usually a versioned plugin path that an update removed. Replace it with a copy from section 1.
+- **checks-path entry on a feature branch:** someone is developing in that clone. Point the line at a copy that stays on `master`, from section 1. Do not switch their branch.
+
+Offer the fix once, and run it in their own terminal when the agent runs as its own user. Then the session check stays quiet until something else changes.
 
 ## 3. The shared knowledge base
 

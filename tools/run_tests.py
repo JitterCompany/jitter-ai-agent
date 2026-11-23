@@ -796,7 +796,10 @@ def extras_session_cases(tmp, ok):
                 rc == 0 and "not active" in out and "2026-09-25" in out, out)
     checks = tmp / "cfg" / "jitter-git" / "checks-path"
     checks.parent.mkdir(parents=True)
-    checks.write_text(str(TOOLS / "precommit") + "\n")
+    plain = tmp / "checks"
+    plain.mkdir()
+    (plain / "path_leak_check.py").write_text("")
+    checks.write_text(str(plain) + "\n")
     hooks = tmp / "hooks"
     hooks.mkdir()
     (hooks / "pre-commit").write_text("#!/bin/sh\nexit 0\n")
@@ -804,6 +807,29 @@ def extras_session_cases(tmp, ok):
     (tmp / "gitconfig").write_text("[core]\n\thooksPath = {}\n".format(hooks))
     rc, out = session()
     ok &= check("extras hook is silent when checks and hook are in place", rc == 0 and not out.strip(), out)
+
+    utils = tmp / "git_utils"
+    (utils / "scripts").mkdir(parents=True)
+    git(["init", "-q", "-b", "master", str(utils)], tmp)
+    git(["remote", "add", "origin", "https://example.com/JitterCompany/git_utils.git"], utils)
+    (utils / "scripts" / "pre-commit").write_text("#!/bin/sh\nexit 0\n")
+    (utils / "scripts" / "pre-commit").chmod(0o755)
+    (tmp / "gitconfig").write_text("[core]\n\thooksPath = {}\n".format(utils / "scripts"))
+    rc, out = session()
+    ok &= check("extras hook offers to update a git_utils hook too old for the checks",
+                rc == 0 and "out of date" in out and "too old" in out, out)
+    rc, out = session()
+    ok &= check("extras hook offers the same update only once", rc == 0 and not out.strip(), out)
+
+    dev = tmp / "dev-clone"
+    (dev / "precommit").mkdir(parents=True)
+    (dev / "precommit" / "path_leak_check.py").write_text("")
+    git(["init", "-q", "-b", "feature/x", str(dev)], tmp)
+    checks.write_text("{}\n{}\n".format(dev / "precommit", tmp / "gone" / "precommit"))
+    (utils / "scripts" / "pre-commit").write_text("#!/bin/sh\n# reads checks-path\nexit 0\n")
+    rc, out = session()
+    ok &= check("extras hook flags a checks-path on a feature branch and one that vanished",
+                rc == 0 and "feature/x" in out and "no longer exists" in out and "too old" not in out, out)
     return ok
 
 

@@ -17,6 +17,7 @@ from pathlib import Path
 HOME = Path.home()
 MARKER = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "jitter-ai-agent" / "onboarded"
 CHECKS = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "jitter-git" / "checks-path"
+UPDATE_OFFERED = MARKER.with_name("update-offered")
 
 FIRST_RUN = (
     "First run for this person: they have not been offered the optional extras yet (commit-time "
@@ -38,15 +39,56 @@ def checks_configured():
     return any((p / "path_leak_check.py").is_file() for p in paths)
 
 
-def hook_active():
-    """True or False inside a repo, None outside one."""
+def hook_file():
+    """The pre-commit hook git would run here, or None outside a repo."""
     if not git("rev-parse", "--git-dir"):
         return None
-    hook = git("rev-parse", "--git-path", "hooks/pre-commit")
     hooks_path = git("config", "core.hooksPath")
     if hooks_path:
-        hook = str(Path(os.path.expanduser(hooks_path)) / "pre-commit")
-    return bool(hook) and os.access(hook, os.X_OK)
+        return Path(os.path.expanduser(hooks_path)) / "pre-commit"
+    return Path(git("rev-parse", "--git-path", "hooks/pre-commit"))
+
+
+def hook_active():
+    """True or False inside a repo, None outside one."""
+    hook = hook_file()
+    return None if hook is None else os.access(hook, os.X_OK)
+
+
+def clone_state(folder):
+    """(top level, branch, commits behind the last fetch) of the clone holding folder."""
+    top = git("-C", str(folder), "rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    branch = git("-C", top, "symbolic-ref", "--short", "HEAD")
+    behind = git("-C", top, "rev-list", "--count", "HEAD..@{upstream}")
+    return top, branch, int(behind or 0)
+
+
+def outdated():
+    """What makes a setup the person accepted quietly do less than it should. No network."""
+    problems = []
+    hook = hook_file()
+    if hook is not None and hook.is_file():
+        real = hook.resolve()
+        state = clone_state(real.parent)
+        if state and "git_utils" in git("-C", state[0], "remote", "get-url", "origin"):
+            if "checks-path" not in real.read_text(encoding="utf-8", errors="replace"):
+                problems.append(f"the git_utils hook in {state[0]} is too old to run the shared checks")
+            elif state[2]:
+                problems.append(f"the git_utils clone {state[0]} is {state[2]} commits behind its last fetch")
+    text = CHECKS.read_text(encoding="utf-8") if CHECKS.is_file() else ""
+    for line in text.splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        path = Path(os.path.expanduser(line.strip()))
+        if not path.exists():
+            problems.append(f"checks-path entry {path} no longer exists")
+            continue
+        state = clone_state(path if path.is_dir() else path.parent)
+        if state and state[1] not in ("master", "main", ""):
+            problems.append(f"checks-path entry {path} is a clone on branch {state[1]}, not master")
+    return problems
 
 
 def main():
@@ -64,6 +106,16 @@ def main():
             f"Commit-time checks are not active for this user ({', '.join(missing)}), although the extras "
             f"were offered ({asked}). guard_commit still checks your own commits for leaked paths; run the "
             "repo's CI checks yourself before pushing. Mention setup-extras only if the user asks."
+        )
+        return
+    problems = outdated()
+    report = "; ".join(problems)
+    offered = UPDATE_OFFERED.read_text(encoding="utf-8").strip() if UPDATE_OFFERED.is_file() else ""
+    if problems and report != offered:
+        UPDATE_OFFERED.write_text(report + "\n", encoding="utf-8")
+        print(
+            f"The commit-time setup this person accepted is out of date: {report}. Offer once to update "
+            "it, with the setup-extras skill (Keep it current), and take a no."
         )
 
 
