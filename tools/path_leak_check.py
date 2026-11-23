@@ -23,9 +23,13 @@ SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".pdf", ".zip", ".gz", ".bin", ".elf",
 # A generic placeholder such as /home/user or /Users/you is fine, a real account name is not.
 PLACEHOLDER = {"user", "username", "you", "youruser", "your-user", "me", "someone", "runner", "ci"}
 
+# A home path starts a path: `app/home/home.routes` or `~/Users/x` is relative, not a leak.
+# `file:///home/user` keeps its three slashes, so `://` before the slash still counts as a start.
+PATH_START = r"(?:(?<![\w.~/-])|(?<=://))"
+
 PATTERNS = [
-    ("home path", re.compile(r"/home/([A-Za-z0-9._-]+)")),
-    ("macOS home path", re.compile(r"/Users/([A-Za-z0-9._-]+)")),
+    ("home path", re.compile(PATH_START + r"/home/([A-Za-z0-9._-]+)")),
+    ("macOS home path", re.compile(PATH_START + r"/Users/([A-Za-z0-9._-]+)")),
     ("Windows home path", re.compile(r"[Cc]:\\\\?Users\\\\?([A-Za-z0-9._-]+)")),
     ("email address", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
     ("private key", re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----")),

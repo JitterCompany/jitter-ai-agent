@@ -273,6 +273,31 @@ def path_leak_cases(tmp, ok):
     code, out = run("path_leak_check.py", [str(leak)])
     ok &= check("a real home path and a personal address are flagged", code == 1, out)
 
+    # Built at runtime, since an older installed copy of the check guards commits to this file.
+    home, users = "home", "Users"
+    relative = tmp / "relative.ts"
+    relative.write_text(
+        'loadChildren: () => import("app/{0}/{0}.routes"),\n'
+        'import {{ list }} from "src/{1}/list.ts";\n'
+        "cp a ~/{1}/x ../{0}/y ./{0}/z my-{0}/w\n"
+        'dir = "${{HOME}}/dev"\n'.format(home, users)
+    )
+    code, out = run("path_leak_check.py", [str(relative)])
+    ok &= check("a relative path through a home or Users folder is not a leak", code == 0, out)
+
+    for leak_line in [
+        "/{}/alice/x".format(home),
+        'root = "/{}/bob/proj"'.format(users),
+        "cd /{}/carol".format(home),
+        "url = file:///{}/dave/notes".format(home),
+        "--dir=/{}/erin".format(users),
+        "open(/{}/frank)".format(home),
+    ]:
+        one = tmp / "one.txt"
+        one.write_text(leak_line + "\n")
+        code, out = run("path_leak_check.py", [str(one)])
+        ok &= check("an absolute home path is flagged: " + leak_line, code == 1, out)
+
     keys = tmp / "keys.rs"
     keys.write_text('const HEADER: &str = "-----BEGIN EC PRIVATE KEY-----";\n')
     code, out = run("path_leak_check.py", [str(keys)])
