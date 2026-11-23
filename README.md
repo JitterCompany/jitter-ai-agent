@@ -1,6 +1,6 @@
 # jitter-ai-agent
 
-Jitter's shared conventions for AI coding agents, plus the tooling that enforces them. One place, versioned, improved by PR, loaded automatically in everyone's sessions.
+Jitter's shared ways of working for AI agents, across firmware, hardware and documents, plus the checks that enforce them. One place, versioned, improved by PR, loaded automatically in everyone's sessions.
 
 Written because AI-assisted Rust drifts in two directions: C-style code, and comment blocks that grow through a long session until they restate the code.
 
@@ -54,7 +54,7 @@ Update after someone lands a change:
 
 ## Pre-commit checks
 
-We already have a global hook, [JitterCompany/git_utils](https://github.com/JitterCompany/git_utils). The checks here plug into that rather than replacing it, so a repo gains nothing new to commit.
+The agent's own commits run these checks through `guard_commit.py`, with nothing to set up. For commits people make, we already have a global hook, [JitterCompany/git_utils](https://github.com/JitterCompany/git_utils). The checks here plug into that rather than replacing it, so a repo gains nothing new to commit.
 
 You do not have to set this up by hand. The first session after installing the plugin offers it, through the `setup-extras` skill, and asks only once. What it writes is a config file rather than a shell profile, because an IDE or a GUI git client often does not load a profile:
 

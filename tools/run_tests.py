@@ -760,6 +760,14 @@ def commit_guard_cases(tmp, ok):
     ok &= check("commit guard skips unstaged changes on a plain commit", rc == 0 and not denies(out), out)
     rc, out = commit("git commit -am x")
     ok &= check("commit guard sees unstaged changes with -am", rc == 0 and denies(out) and home + "/carol" in out, out)
+
+    git(["checkout", "--", "old.txt"], repo)
+    (repo / "board.kicad_pro").write_text("{}")
+    (repo / "board.kicad_sch").write_text(symbol("board", "9999-customer-pcb"))
+    git(["add", "board.kicad_pro", "board.kicad_sch"], repo)
+    rc, out = commit("git commit -m x")
+    ok &= check("commit guard blocks another project's KiCad annotation, with no setup",
+                rc == 0 and denies(out) and "9999-customer-pcb" in out, out)
     return ok
 
 

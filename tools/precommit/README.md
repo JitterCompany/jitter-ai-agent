@@ -1,10 +1,6 @@
 # Checks meant for commit time
 
-Point the shared git hook at this directory, not at `tools/`, which also holds the self-tests:
-
-```sh
-export JITTER_PRECOMMIT_CHECKS="$HOME/dev/jitter/common/jitter-ai-agent/tools/precommit"
-```
+The agent's own commits run these through `guard_commit.py`, with no setup. For commits people make, the git_utils hook runs the folders listed in `~/.config/jitter-git/checks-path`. List this folder, not `tools/`, which also holds the self-tests. Use a copy that stays current: the `setup-extras` skill picks one.
 
 Only these checks belong here, because they catch what an edit hook cannot see:
 

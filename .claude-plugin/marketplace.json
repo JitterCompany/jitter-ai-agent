@@ -4,7 +4,7 @@
     "name": "Jitter"
   },
   "metadata": {
-    "description": "Jitter coding conventions and shared tooling for AI coding agents",
+    "description": "Jitter's shared rules, skills and checks for AI agents: firmware, hardware, documents and quotes",
     "version": "0.3.8"
   },
   "plugins": [

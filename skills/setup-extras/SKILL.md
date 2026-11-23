@@ -18,7 +18,9 @@ Write these files with the Write tool rather than a shell redirect. A shell comm
 
 ## 1. The commit-time checks
 
-They catch a local path or personal data in anything about to be committed (C3), and KiCad dropping its own ERC and DRC exclusions (H5). Both see things an edit-time check cannot.
+They catch a local path or personal data in anything about to be committed (C3), KiCad dropping its own ERC and DRC exclusions (H5), and another project's name hidden in KiCad annotation (C1). They see things an edit-time check cannot.
+
+Your own commits need none of this: `guard_commit.py` runs the same checks on every commit you make. The setup below is for the commits people make by hand. Offer it, and do not push it on someone who declines.
 
 Check what is already there, and only offer what is missing:
 
@@ -29,8 +31,9 @@ echo "$JITTER_PRECOMMIT_CHECKS"
 
 To enable, with their yes, add one line to `~/.config/jitter-git/checks-path`. Use a path that survives a plugin update, in this order:
 
-1. `~/.claude/plugins/marketplaces/jitter/tools/precommit`, the marketplace checkout, which `/plugin marketplace update` keeps current.
-2. Their own clone of this repo, if they maintain one, which `git pull` keeps current.
+1. `~/.claude/plugins/marketplaces/jitter/tools/precommit`, the marketplace checkout, which `/plugin marketplace update` keeps current. Offer to turn on auto-update for the `jitter` marketplace in `/plugin`.
+2. When the agent runs as its own user and the person has no Claude Code: the agent user's marketplace checkout, if their account can read it (a shared group).
+3. A clone of this repo that stays on `master` and gets pulled. Not the clone someone develops in: its current branch decides which checks run, so they drift or run half-finished.
 
 Do **not** write the `JITTER_ROOT` from the session header. That is the installed copy for one plugin version, such as `.../plugins/cache/jitter/jitter/0.1.0`, and it stops existing on the next version bump, leaving the checks silently unconfigured.
 
@@ -53,7 +56,7 @@ mkdir -p ~/.config/jitter-git
 echo "$HOME/.claude/plugins/marketplaces/jitter/tools/precommit" >> ~/.config/jitter-git/checks-path
 ```
 
-If they have no plugin install of their own, point that line at any clone of this repo instead. The checks are plain python and do not need the plugin.
+If they have no plugin install of their own, use the agent user's marketplace path instead, when their account can read it. Have them run the proof command above from their own account. Otherwise use option 3. The checks are plain python and do not need the plugin.
 
 ## 2. The shared git hook
 
