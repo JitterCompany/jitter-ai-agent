@@ -15,6 +15,7 @@ Written because AI-assisted Rust drifts in two directions: C-style code, and com
 | `tools/comment_lint.py` | Comment-bloat check for Rust, standalone or as an edit hook |
 | `tools/path_leak_check.py` | Blocks `/home/<user>`, personal email addresses and tokens from leaving the machine |
 | `tools/kicad_project_check.py` | Catches ERC/DRC exclusions that KiCad drops when it rewrites a `.kicad_pro` |
+| `tools/kicad_foreign_check.py` | Catches another project's name in hidden KiCad annotation (C1), `--fix` strips it |
 | `tools/prose_check.py` | The P rules a script can see: em dashes, semicolon-chained sentences |
 | `tools/layout_check.py` | R7, the `mod.rs` files |
 | `tools/guard_push.py` | Enforces W2: a push to master, a force push, a tag or a PR brings up an approval prompt |
@@ -61,7 +62,7 @@ You do not have to set this up by hand. The first session after installing the p
 echo "/path/to/jitter-ai-agent/tools/precommit" >> ~/.config/jitter-git/checks-path
 ```
 
-`tools/precommit/` holds exactly the two checks that belong at commit time, `path_leak_check.py` (C3) and `kicad_project_check.py` (H5). Both catch what the session hooks cannot see: a file produced by a generator rather than an edit, and KiCad clearing its own ERC and DRC exclusions. Point at that directory rather than `tools/`, which also holds the self-tests.
+`tools/precommit/` holds exactly the checks that belong at commit time: `path_leak_check.py` (C3), `kicad_project_check.py` (H5) and `kicad_foreign_check.py` (C1). They catch what the session hooks cannot see: a file produced by a generator rather than an edit, KiCad clearing its own ERC and DRC exclusions, and annotation KiCad copied in from another project. Point at that directory rather than `tools/`, which also holds the self-tests.
 
 Support for `$JITTER_PRECOMMIT_CHECKS` is a change to git_utils itself, on the `precommit-checks` branch.
 
@@ -75,6 +76,7 @@ python3 tools/comment_lint.py --changed --max-run 2    # stricter when you wrote
 python3 tools/comment_lint.py $(git ls-files '*.rs')
 python3 tools/path_leak_check.py --staged              # what the pre-commit hook runs
 python3 tools/kicad_project_check.py                   # in a KiCad repo, before committing
+python3 tools/kicad_foreign_check.py --fix <files>     # strip another project's annotation
 python3 tools/prose_check.py --tracked                 # docs, READMEs, decision records
 python3 tools/layout_check.py                          # mod.rs files (R7)
 python3 tools/guard_push.py                            # reads a hook payload, see the file

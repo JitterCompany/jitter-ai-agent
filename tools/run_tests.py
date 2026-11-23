@@ -830,6 +830,67 @@ def hardware_rules_cases(tmp, ok):
     return ok
 
 
+def symbol(*projects):
+    blocks = "".join(
+        '\t\t\t(project "{}"\n\t\t\t\t(path "/a/b"\n\t\t\t\t\t(reference "R1")\n'
+        '\t\t\t\t\t(unit 1)\n\t\t\t\t)\n\t\t\t)\n'.format(p) for p in projects)
+    return '(kicad_sch\n\t(symbol\n\t\t(lib_id "Device:R")\n\t\t(instances\n{}\t\t)\n\t)\n)\n'.format(blocks)
+
+
+def kicad_foreign_cases(tmp, ok):
+    repo = tmp / "foreign"
+    board = repo / "hw" / "board"
+    (board / "sheets").mkdir(parents=True)
+    git(["init", "-q", "-b", "main"], repo)
+    (board / "board.kicad_pro").write_text("{}")
+    (board / "board.kicad_sch").write_text(symbol("board"))
+    (board / "sheets" / "power.kicad_sch").write_text(symbol("board"))
+    (board / "old-name.kicad_sch").write_text(symbol("old-name", ""))
+    (board / "fp.kicad_mod").write_text('(footprint "R"\n\t(property "Reference" "R")\n)\n')
+    git(["add", "-A"], repo)
+
+    code, out = run("kicad_foreign_check.py", [], cwd=repo)
+    ok &= check("kicad_foreign_check quiet on own, subsheet, root-sheet and empty projects",
+                code == 0, out)
+
+    (board / "board.kicad_sch").write_text(symbol("board", "9999-customer-pcb"))
+    code, out = run("kicad_foreign_check.py", [], cwd=repo)
+    ok &= check("kicad_foreign_check catches another project's instances",
+                code == 1 and "9999-customer-pcb" in out, out)
+    code, out = run("kicad_foreign_check.py", ["--staged"], cwd=repo)
+    ok &= check("kicad_foreign_check --staged ignores an unstaged leak", code == 0, out)
+    git(["add", "-A"], repo)
+    (board / "board.kicad_sch").write_text(symbol("board"))
+    code, out = run("kicad_foreign_check.py", ["--staged"], cwd=repo)
+    ok &= check("kicad_foreign_check --staged reads the index", code == 1, out)
+
+    block = repo / "blocks" / "ldo.kicad_block" / "ldo.kicad_sch"
+    block.parent.mkdir(parents=True)
+    block.write_text(symbol("9999-customer-pcb"))
+    (repo / "fp.kicad_mod").write_text(
+        '(footprint "R"\n\t(property "Sheetfile" "9999-customer.kicad_sch"\n'
+        '\t\t(at 0 0 0)\n\t)\n)\n')
+    code, out = run("kicad_foreign_check.py", [str(block), str(repo / "fp.kicad_mod")], cwd=repo)
+    ok &= check("kicad_foreign_check catches a design block and a footprint Sheetfile",
+                code == 1 and "ldo.kicad_sch" in out and "Sheetfile" in out, out)
+
+    code, out = run("kicad_foreign_check.py", ["--fix", str(block), str(repo / "fp.kicad_mod")],
+                    cwd=repo)
+    fixed = block.read_text()
+    ok &= check("kicad_foreign_check --fix strips them and the emptied instances",
+                code == 0 and "(project" not in fixed and "(instances" not in fixed
+                and "Sheetfile" not in (repo / "fp.kicad_mod").read_text()
+                and fixed.count("(") == fixed.count(")"), out + fixed)
+
+    block.write_text(symbol("9999-customer-pcb"))
+    lock = block.with_name("~ldo.kicad_sch.lck")
+    lock.write_text("")
+    code, out = run("kicad_foreign_check.py", ["--fix", str(block)], cwd=repo)
+    ok &= check("kicad_foreign_check --fix leaves a file open in KiCad alone",
+                code == 1 and "9999-customer-pcb" in block.read_text(), out)
+    return ok
+
+
 def main():
     ok = True
     with tempfile.TemporaryDirectory() as tmp:
@@ -838,6 +899,7 @@ def main():
         ok = path_leak_cases(tmp, ok)
         ok = prose_cases(tmp, ok)
         ok = repo_cases(tmp, ok)
+        ok = kicad_foreign_cases(tmp, ok)
         ok = guard_cases(ok)
         ok = branch_cases(tmp, ok)
         ok = knowledge_session_cases(tmp, ok)
