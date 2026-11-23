@@ -65,12 +65,11 @@ The checks in section 1 only run on a person's own commits if the repo calls the
 ### Look first
 
 ```sh
-git config --global --get init.templateDir
-git config --get core.hooksPath
-ls -l "$(git rev-parse --git-common-dir)/hooks/pre-commit"
+git config --global --get core.hooksPath
+git -C ~/git remote get-url origin
 ```
 
-It is in place when the repo's hook, or `core.hooksPath`, points into a `git_utils` clone. Usually that is `~/git`: confirm with `git -C ~/git remote get-url origin`.
+It is in place when `core.hooksPath` points at the `scripts` folder of a `git_utils` clone, usually `~/git/scripts`. A repo that still has a hook link or copy in `.git/hooks` is fine too, but only that repo is covered.
 
 ### Install it the git_utils way
 
@@ -78,29 +77,14 @@ With their yes, and in their own terminal when the agent runs as its own user:
 
 ```sh
 git clone https://github.com/JitterCompany/git_utils.git ~/git   # skip if a clone exists
-~/git/install.sh                                                # links the hook into the template
-git config --global init.templateDir ~/git/template             # every new clone gets the hook
+git config --global core.hooksPath ~/git/scripts
 ```
 
-The template only reaches repos cloned or created from now on. For a repo they already have, `git init` inside it adds the hook. It leaves an existing hook alone, so it is safe to run:
+One setting covers every repo, existing and future, and a `git -C ~/git pull` updates them all at once.
 
-```sh
-for d in ~/dev/jitter/*/ ~/dev/jitter/common/*/; do [ -d "$d/.git" ] && git -C "$d" init -q; done
-```
+`core.hooksPath` makes git ignore each repo's `.git/hooks`. That costs nothing in our setup: a project that needs its own hook commits a `.git-pre-commit` in its root, and the shared hook runs it after the checks. It does switch off hooks that tools install into `.git/hooks`. If `git config --global --get filter.lfs.process` prints something, they use git LFS: tell them its hooks stop running, and let them decide.
 
-Adjust the folders to where they keep their repos, and show them the list before running it.
-
-Do not set `core.hooksPath`, even though the git_utils README suggests it. It switches off every hook a repo keeps in `.git/hooks`, and some repos have their own hook for a reason. If it is already set, leave it and tell them what it does.
-
-### When the agent runs as its own user
-
-A hook inside a repo binds everyone who commits in that checkout. So when their repo has no hook and their `git_utils` clone is readable to you, you can close the gap for that one repo, after asking:
-
-```sh
-ln -s ~person/git/scripts/pre-commit "$(git rev-parse --git-common-dir)/hooks/pre-commit"
-```
-
-Use their real clone path. Never overwrite an existing hook.
+If `core.hooksPath` is already set to something else, leave it and ask.
 
 ### If they skip it
 
@@ -110,7 +94,7 @@ Do not ask again. Their hand-made commits then go unchecked, but yours do not: `
 
 A setup someone accepted can quietly stop working. The session check looks for this without touching the network, and reports each problem once:
 
-- **git_utils hook too old to run the shared checks:** `git -C ~/git pull`. The repos link to the clone's script, so they all pick it up at once.
+- **git_utils hook too old to run the shared checks:** `git -C ~/git pull`. Every repo uses the clone's script, so they all pick it up at once. If the hook is a copy in one repo's `.git/hooks` instead, setting `core.hooksPath` as above replaces it.
 - **git_utils clone behind its last fetch:** the same pull.
 - **checks-path entry gone:** usually a versioned plugin path that an update removed. Replace it with a copy from section 1.
 - **checks-path entry on a feature branch:** someone is developing in that clone. Point the line at a copy that stays on `master`, from section 1. Do not switch their branch.
