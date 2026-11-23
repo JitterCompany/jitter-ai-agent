@@ -10,6 +10,9 @@ property of spice models, but also worksheet and library references. These
 break on other machines and trip pre-commit hooks that blacklist host-specific
 strings (e.g. `/home/<user>`).
 
+Another project's name hidden in symbol `instances` or a footprint `Sheetfile` is a
+different leak with its own fix: `python3 "$JITTER_ROOT/tools/kicad_foreign_check.py" --fix <files>`.
+
 ## Workflow (this user's convention)
 
 Pre-commit hooks here **only flag, never edit**. The pattern is: run a fix
