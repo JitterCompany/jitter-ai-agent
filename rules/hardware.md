@@ -25,6 +25,10 @@ Opening a project is enough for KiCad to rewrite `.kicad_pro`, and it drops thin
 - **H11** For anything `kicad-cli` does not cover, write a script (Python) and keep it in the repo. Do not hand-parse s-expressions inline in a one-off shell command.
 - **H12** Check whether the project already has tooling for the job, such as `hardware/tools/pcb.sh`, before writing a new script.
 
+## Symbols
+
+- **H19** Design a schematic symbol for ease of use in the schematic, following the KiCad Library Conventions: pins grouped by function, supplies on top, GND on the bottom, multiplexed functions as pin alternates. Do not copy the footprint's shape or pin order. When you revise a symbol, keep every signal pin where it was, so it drops in without rewiring. The `kicad-symbol` skill has the details and a check.
+
 ## Pinmaps
 
 - **H13** `[reserved]` lists the peripherals the firmware needs internally. It is not a way to park a spare GPIO.
