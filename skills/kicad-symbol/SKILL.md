@@ -1,6 +1,6 @@
 ---
 name: kicad-symbol
-description: Design or revise a KiCad schematic symbol for ease of use in the schematic, following the KiCad Library Conventions (KLC). Use when making a new symbol, changing an existing one, or replacing an old symbol with a new one.
+description: Design or revise a KiCad schematic symbol: pin layout, alternates, drop-in replacement. Use when creating, changing or replacing a symbol.
 ---
 
 # Designing a KiCad schematic symbol
