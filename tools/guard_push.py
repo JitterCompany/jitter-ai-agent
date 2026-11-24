@@ -14,7 +14,9 @@ Free:
     git push of a feature branch, which a PR review covers before it reaches master
 
 The branch is read in the session's folder, or in the folder a `cd` or `pushd` earlier in
-the same command moved to. A `cd` it cannot follow makes a later push ask.
+the same command moved to. A `cd` it cannot follow makes a later push ask. A push from a
+worktree that a `git worktree add` earlier in the same command creates uses the branch
+that worktree will have, since the folder does not exist yet when the guard runs.
 
 Opt-out per machine: JITTER_PUBLISH_ALLOW holds a comma-separated list of the names in
 PUBLISHING other than "git push", for example "gh pr create". Set it in the "env" block of
@@ -173,12 +175,79 @@ def strip_prefix(tokens):
     return tokens
 
 
-def publishing_in(segment, cwd, depth=0):
+def publishing_in(segment, cwd, planned=None, depth=0):
     """Why this segment needs approval, or None."""
-    return in_tokens(words(segment), cwd, depth)
+    return in_tokens(words(segment), cwd, planned or {}, depth)
 
 
-def in_tokens(tokens, cwd, depth=0, via_xargs=False):
+def git_options(rest, repo):
+    """Skip git's own options. Returns the folder `-C` points at and what follows."""
+    while rest and (
+        rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
+    ):
+        if rest[0] == "-C" and len(rest) > 1:
+            path = os.path.expanduser(rest[1])
+            repo = path if os.path.isabs(path) else repo and os.path.join(repo, path)
+        rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
+    return repo, rest
+
+
+WORKTREE_ADD_VALUE = {"-b", "-B", "--reason"}
+
+
+def planned_worktree(segment, cwd):
+    """For `git worktree add`: (folder, what it will hold), else None.
+
+    What it holds is {"repo", "branch", "upstream"}, with the branch None when it will be
+    detached. The branch follows git's own choice: -b/-B, else an existing local branch,
+    else a remote branch of that name (git creates a tracking branch), else a new branch
+    named after the folder when no commit is given, else detached.
+    """
+    tokens = strip_prefix(words(segment))
+    if not tokens or tokens[0].rsplit("/", 1)[-1] != "git":
+        return None
+    repo, rest = git_options(tokens[1:], cwd)
+    if rest[:2] != ["worktree", "add"] or repo is None:
+        return None
+    branch, detach, no_track, positional = None, False, False, []
+    args = iter(rest[2:])
+    for arg in args:
+        if arg in ("-b", "-B"):
+            branch = next(args, None)
+        elif arg in WORKTREE_ADD_VALUE:
+            next(args, None)
+        elif arg in ("--detach", "-d"):
+            detach = True
+        elif arg == "--no-track":
+            no_track = True
+        elif not arg.startswith("-"):
+            positional.append(arg)
+    if not positional:
+        return None
+    folder = os.path.normpath(os.path.join(repo, os.path.expanduser(positional[0])))
+    start = positional[1] if len(positional) > 1 else None
+    upstream = None
+    if detach:
+        branch = None
+    elif branch is None and start is None:
+        branch = os.path.basename(folder)
+    elif branch is None:
+        remote = git_out(repo, "for-each-ref", "--format=%(refname:lstrip=3)",
+                         "refs/remotes/*/" + start)
+        if git_out(repo, "show-ref", "--verify", "--quiet", "refs/heads/" + start) is not None:
+            branch = start
+            upstream = git_out(repo, "rev-parse", "--abbrev-ref", start + "@{upstream}")
+            upstream = upstream and upstream.split("/", 1)[-1]
+        elif remote:
+            branch, upstream = start, start
+    if branch and start and not no_track and upstream is None:
+        # A start point on a remote branch makes it the upstream, as in `-b x origin/master`.
+        if git_out(repo, "rev-parse", "--verify", "--quiet", "refs/remotes/" + start) is not None:
+            upstream = start.split("/", 1)[-1]
+    return folder, {"repo": repo, "branch": branch, "upstream": upstream}
+
+
+def in_tokens(tokens, cwd, planned, depth=0, via_xargs=False):
     tokens = strip_prefix(list(tokens))
     if not tokens:
         return None
@@ -189,7 +258,7 @@ def in_tokens(tokens, cwd, depth=0, via_xargs=False):
         # The command sits in an argument, as in `bash -c 'cd x && git push'`.
         for token in tokens[1:]:
             for piece in segments(token):
-                found = publishing_in(piece, cwd, depth + 1)
+                found = publishing_in(piece, cwd, planned, depth + 1)
                 if found:
                     return found
         return None
@@ -204,7 +273,7 @@ def in_tokens(tokens, cwd, depth=0, via_xargs=False):
                 continue  # this token is that option's value, as in `sudo -u git`
             name = token.rsplit("/", 1)[-1]
             if name in RUNS_A_STRING or name in WRAPPERS or name in PROGRAMS:
-                return in_tokens(tokens[index:], cwd, depth, via_xargs or program == "xargs")
+                return in_tokens(tokens[index:], cwd, planned, depth, via_xargs or program == "xargs")
         return None
 
     if DRY_RUN & set(tokens) or HELP & set(tokens):
@@ -213,22 +282,14 @@ def in_tokens(tokens, cwd, depth=0, via_xargs=False):
     for command, subcommand, name in PUBLISHING:
         if program != command:
             continue
-        rest = tokens[1:]
-        repo = cwd
-        while rest and (
-            rest[0] in GIT_OPTION_WITH_VALUE or rest[0] in GIT_FLAG or rest[0].startswith("--git-dir=")
-        ):
-            if rest[0] == "-C" and len(rest) > 1:
-                path = os.path.expanduser(rest[1])
-                repo = path if os.path.isabs(path) else repo and os.path.join(repo, path)
-            rest = rest[2:] if rest[0] in GIT_OPTION_WITH_VALUE else rest[1:]
+        repo, rest = git_options(tokens[1:], cwd)
         if rest[: len(subcommand)] != subcommand:
             continue
         if name != "git push":
             return name
         if via_xargs:
             return "git push with a target xargs fills in"
-        return push_needs_approval(rest[1:], repo)
+        return push_needs_approval(rest[1:], repo, planned)
     return None
 
 
@@ -237,7 +298,7 @@ def git_out(repo, *args):
     return done.stdout.strip() if done.returncode == 0 else None
 
 
-def push_needs_approval(args, repo):
+def push_needs_approval(args, repo, planned=None):
     """Why this `git push <args>` needs approval, or None for a feature branch."""
     positional = []
     skip = False
@@ -255,16 +316,22 @@ def push_needs_approval(args, repo):
 
     if repo is None:
         return "git push after a cd the guard cannot follow (use git -C <repo> push)"
-    if git_out(repo, "rev-parse", "--git-dir") is None:
+    plan = (planned or {}).get(os.path.normpath(repo)) if not os.path.exists(repo) else None
+    if plan:
+        # The worktree does not exist yet. Read what it will hold, and tags in its repo.
+        repo, current, upstream = plan["repo"], plan["branch"], plan["upstream"]
+    elif git_out(repo, "rev-parse", "--git-dir") is None:
         return "git push outside a git repo (use git -C <repo> push)"
-    current = git_out(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
+    else:
+        current = git_out(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
+        upstream = current and git_out(repo, "rev-parse", "--abbrev-ref", current + "@{upstream}")
+        upstream = upstream and upstream.split("/", 1)[-1]
     refspecs = positional[1:]
     if not refspecs:
         # The target is the current branch's upstream, or the branch of the same name.
         if current is None:
             return "git push from a detached HEAD"
-        upstream = git_out(repo, "rev-parse", "--abbrev-ref", current + "@{upstream}")
-        targets = [current] + ([upstream.split("/", 1)[-1]] if upstream else [])
+        targets = [current] + ([upstream] if upstream else [])
         hit = next((b for b in targets if b in PROTECTED), None)
         return f"git push to {hit}" if hit else None
 
@@ -358,6 +425,7 @@ def main():
     allowed = allowed_here()
 
     variables = {}
+    planned = {}
     for segment in segments(command):
         segment = expand(segment, variables)
         if assigns(segment, variables):
@@ -365,7 +433,10 @@ def main():
         if is_cd(segment):
             cwd = cd_target(segment, cwd)
             continue
-        reason = publishing_in(segment, cwd)
+        worktree = planned_worktree(segment, cwd)
+        if worktree:
+            planned[worktree[0]] = worktree[1]
+        reason = publishing_in(segment, cwd, planned)
         if reason and reason not in allowed:
             json.dump({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",

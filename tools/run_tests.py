@@ -536,6 +536,31 @@ def branch_cases(tmp, ok):
         ("cd {} && cd .. && git push".format(repo), "a second cd out again", tmp),
     ]:
         ok &= check("asks: " + name, push(command, cwd=cwd))
+    # A worktree added earlier in the same command does not exist yet when the guard runs.
+    git(["push", "-q", "origin", "master:pr-assets/1"], repo)
+    git(["fetch", "-q", "origin"], repo)
+    for command, name in [
+        ("git -C {r} worktree add -b f2 {t}/wt1 origin/master && git -C {t}/wt1 push -u origin HEAD",
+         "-b from origin/master, pushed by HEAD"),
+        ("A={t}/wt2; git -C {r} worktree add $A pr-assets/1 && git -C $A push origin HEAD",
+         "a remote branch git checks out by name"),
+        ("git -C {r} worktree add --orphan -b pr-assets/2 {t}/wt3 && git -C {t}/wt3 push -u origin HEAD",
+         "an orphan branch"),
+        ("git -C {r} worktree add {t}/wt4 && git -C {t}/wt4 push origin HEAD",
+         "a new branch named after the folder"),
+    ]:
+        ok &= check("a new worktree's feature branch pushes freely: " + name,
+                    not push(command.format(r=repo, t=tmp), cwd=tmp))
+    for command, name in [
+        ("git -C {r} worktree add {t}/wt5 master && git -C {t}/wt5 push origin HEAD", "a worktree on master"),
+        ("git -C {r} worktree add --detach {t}/wt6 && git -C {t}/wt6 push origin HEAD", "a detached worktree"),
+        ("git -C {r} worktree add -b f3 {t}/wt7 origin/master && git -C {t}/wt7 push",
+         "a new worktree whose upstream is master"),
+        ("git -C {r} worktree add -b f4 {t}/wt8 && git -C {t}/wt8 push origin HEAD:main",
+         "a new worktree still checks the target"),
+        ("git -C {t}/never-added push origin HEAD", "a folder no command creates"),
+    ]:
+        ok &= check("asks: " + name, push(command.format(r=repo, t=tmp), cwd=tmp))
     # HOME is a repo on a feature branch here, so `cd -` cannot pass by landing in it.
     ok &= check("a bare cd goes home", not push("cd && git push", cwd=tmp, home=repo))
     ok &= check("asks: cd -", push("cd - && git push", cwd=tmp, home=repo))
