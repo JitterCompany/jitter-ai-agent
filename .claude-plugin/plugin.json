@@ -1,7 +1,7 @@
 {
   "name": "jitter",
   "description": "Jitter's shared rules, skills and checks for AI agents: firmware, hardware, documents and quotes",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "author": {
     "name": "Jitter"
   }
