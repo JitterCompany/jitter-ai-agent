@@ -1,0 +1,1 @@
+../kicad_foreign_check.py

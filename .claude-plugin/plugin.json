@@ -1,7 +1,7 @@
 {
   "name": "jitter",
-  "description": "Jitter house rules: Rust style, working conventions, comment-bloat and path-leak checks, KiCad skills",
-  "version": "0.3.8",
+  "description": "Jitter's shared rules, skills and checks for AI agents: firmware, hardware, documents and quotes",
+  "version": "0.3.9",
   "author": {
     "name": "Jitter"
   }
