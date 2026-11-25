@@ -1,11 +1,11 @@
 ---
 name: pcb-ci-setup
-description: Set up or extend the Jitter KiCad hardware CI: pcb_release submodule, ci-hardware workflows, release.toml, the pinmap gate, the board list. Use to add the KiCad checks, add a board, or cut a hw-v* release.
+description: Set up, extend or update the Jitter KiCad hardware CI: pcb_release submodule, ci-hardware workflows, release.toml, the pinmap gate, the board list. Use to add the KiCad checks, add a board, start a board revision, or cut a hw-v* release.
 ---
 
 # Jitter hardware CI (pcb_release)
 
-Five gates over every KiCad board in a repo. All logic lives in
+Gates over every KiCad board in a repo (the list is in pcb_release's `docs/gates.md`). All logic lives in
 **https://github.com/JitterCompany/pcb_release** (public), called as two reusable GitHub
 workflows. A consumer repo states only its board list.
 
@@ -89,6 +89,25 @@ to **drc**.
 * **Don't edit .kicad_sch or .kicad_pcb while KiCad has them open** (`~*.lck` present).
   Leave design fixes to the user, record them in CI-STATUS.md.
 * Wiring and cable drawings are not boards. Leave them out of the list entirely.
+
+## Starting a board revision: update pcb_release first
+
+A repo runs the gates from its own submodule commit. Only the workflow file follows
+pcb_release master. So a repo gets new or stricter gates only when someone bumps the
+submodule, and a board can sit on checks that are years old. Bump at the start of a
+revision, not just before its release, so the findings arrive while there is time to fix
+them.
+
+1. See what changed: `git -C hardware/tools/pcb_release fetch` then
+   `git -C hardware/tools/pcb_release log --oneline HEAD..origin/master`. New gates show
+   in `docs/gates.md` and in `GATES` in `scripts/boards.py`.
+2. Bump the submodule to `origin/master` on the revision's branch.
+3. Run every gate: `NO_COLOR=1 hardware/tools/pcb.sh > /tmp/all.log 2>&1`.
+4. A new gate that fails on a board gets `todo=<gate>` in **both** workflows' board lists,
+   with the reason in `hardware/CI-STATUS.md`. A gate that went green drops its `todo=`.
+5. Commit the bump and the board-list changes together, so the PR shows both.
+
+The revision then aims to clear those `todo=` entries before its release.
 
 ## Releasing
 
