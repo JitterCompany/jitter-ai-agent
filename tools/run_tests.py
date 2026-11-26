@@ -312,6 +312,11 @@ def path_leak_cases(tmp, ok):
     code, out = run("path_leak_check.py", [str(real_key)])
     ok &= check("a PEM header with key material after it is a leak", code == 1, out)
 
+    mails = tmp / "mails.rs"
+    mails.write_text('a = "Reset@Example.com"\nb = "help@frogwatch.nl"\nc = "demo@test.frogwatch"\n')
+    code, out = run("path_leak_check.py", [str(mails)])
+    ok &= check("allowed domains match in any case, frogwatch addresses are allowed", code == 0, out)
+
     modules = tmp / ".gitmodules"
     modules.write_text("\turl = git@github.com:JitterCompany/pcb_release.git\n")
     code, out = run("path_leak_check.py", [str(modules)])

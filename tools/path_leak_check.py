@@ -42,10 +42,12 @@ ALLOW_MARKER = "path-leak-check: allow"
 
 # Addresses we publish on purpose.
 EMAIL_ALLOW = re.compile(
-    r"@(jitter\.company|users\.noreply\.github\.com|noreply\.anthropic\.com|example\.(com|org))$"
+    r"@(jitter\.company|frogwatch\.nl|test\.frogwatch|users\.noreply\.github\.com"
+    r"|noreply\.anthropic\.com|example\.(com|org))$"
     # Documentation placeholders: account@server.tld, you@example.test, user@host.invalid.
     r"|@[A-Za-z0-9.-]+\.(tld|invalid|test|example|local)$"
-    r"|^(account|user|username|you|your|name|email|address|someone)@"
+    r"|^(account|user|username|you|your|name|email|address|someone)@",
+    re.IGNORECASE,
 )
 # `git@github.com:Org/repo.git` is a remote, not somebody's mailbox. Submodules carry it (H9).
 GIT_REMOTE = re.compile(r"\bgit@[A-Za-z0-9.-]+[:/]")
